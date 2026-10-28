@@ -126,13 +126,49 @@
     .rating-pick button.on { color: var(--accent); }
 
     .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
+    [hidden] { display: none !important; }
+
+    /* Sign-in screen */
+    .auth-wrap { padding: 0 16px; }
+    .auth {
+      max-width: 380px; margin: 12vh auto 0; padding: 24px;
+      background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    }
+    .auth h1 { margin-bottom: 4px; }
+    .auth p { color: var(--muted); margin: 0 0 20px; font-size: .9rem; }
+    .auth .field { margin-bottom: 12px; }
+    .auth .actions { display: flex; gap: 8px; margin-top: 16px; }
+    .auth .actions button { flex: 1; }
+    .auth .msg { margin-top: 14px; font-size: .9rem; }
+    .msg.err, .account .err { color: var(--danger); }
+
+    /* Signed-in bar under the header */
+    .account {
+      display: flex; justify-content: flex-end; align-items: center; gap: 10px; flex-wrap: wrap;
+      margin-top: 10px; font-size: .85rem; color: var(--muted);
+    }
   </style>
 </head>
 <body>
   <!-- ============================================================
        PAGE STRUCTURE (HTML): what's on the page
        ============================================================ -->
-  <div class="wrap">
+  <!-- Sign-in screen, shown when you're logged out -->
+  <div class="auth-wrap" id="authView" hidden>
+    <form class="auth" id="authForm">
+      <h1>Pourover <span>Log</span></h1>
+      <p>Sign in to see your brews on any device.</p>
+      <div class="field"><label for="authEmail">Email</label><input id="authEmail" type="email" autocomplete="email" required></div>
+      <div class="field"><label for="authPassword">Password</label><input id="authPassword" type="password" autocomplete="current-password" minlength="6" required></div>
+      <div class="actions">
+        <button type="submit" class="primary" id="signInBtn">Sign in</button>
+        <button type="button" id="signUpBtn">Create account</button>
+      </div>
+      <div class="msg" id="authMsg"></div>
+    </form>
+  </div>
+
+  <div class="wrap" id="appView" hidden>
     <header>
       <h1>Pourover <span>Log</span></h1>
       <div class="toolbar">
@@ -146,6 +182,11 @@
         <button class="primary" id="newBtn">+ New brew</button>
       </div>
     </header>
+    <div class="account">
+      <span id="syncStatus"></span>
+      <span id="userEmail"></span>
+      <button class="small" id="logoutBtn">Log out</button>
+    </div>
 
     <div class="filters">
       <div class="search">
@@ -267,19 +308,145 @@
   <!-- ============================================================
        BEHAVIOR (JavaScript): what happens when you click things
        ============================================================ -->
+  <!-- Supabase library: talks to the online database and handles logins -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
   <script>
-    const STORAGE_KEY = 'pourover-log-v1';
     const $ = (id) => document.getElementById(id);
 
-    // ---------- Saving & loading (stored in this browser) ----------
-    function loadBrews() {
-      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+    // ---------- Connection to the online database (Supabase) ----------
+    // These two values are safe to be public: the database only lets each
+    // signed-in user read and change their own brews (see supabase/setup.sql).
+    const SUPABASE_URL = 'https://ixiyhlvcobbdbevhxgok.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_5QIBbcSz1AZT5Sjk5YUH3w_adVdt-ix';
+    const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Where brews were kept before syncing existed (only used for the one-time upload)
+    const OLD_STORAGE_KEY = 'pourover-log-v1';
+
+    let user = null;
+    let brews = [];
+
+    // A copy of your brews is also kept in this browser, so the app opens instantly
+    const cacheKey = () => `pourover-log-cache-${user.id}`;
+    function loadCache() {
+      try { return JSON.parse(localStorage.getItem(cacheKey())) || []; }
       catch { return []; }
     }
-    function saveBrews() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(brews));
+    function cacheBrews() {
+      try { localStorage.setItem(cacheKey(), JSON.stringify(brews)); } catch {}
     }
-    let brews = loadBrews();
+
+    function setStatus(text, isError = false) {
+      $('syncStatus').textContent = text;
+      $('syncStatus').className = isError ? 'err' : '';
+    }
+
+    // ---------- Reading & writing brews online ----------
+    async function fetchBrews() {
+      setStatus('Syncing…');
+      const { data, error } = await db.from('brews').select('id, data');
+      if (error) return setStatus('Offline: showing the last synced copy', true);
+      brews = data.map(row => ({ ...row.data, id: row.id }));
+      cacheBrews();
+      render();
+      setStatus('Synced');
+    }
+
+    async function uploadBrews(list) {
+      setStatus('Saving…');
+      const rows = list.map(({ id, ...data }) => ({ id, data, updated_at: new Date().toISOString() }));
+      const { error } = await db.from('brews').upsert(rows);
+      if (error) {
+        setStatus('Not saved: check your connection', true);
+        return false;
+      }
+      setStatus('Synced');
+      return true;
+    }
+
+    async function deleteBrewOnline(id) {
+      setStatus('Saving…');
+      const { error } = await db.from('brews').delete().eq('id', id);
+      setStatus(error ? 'Delete failed: check your connection' : 'Synced', !!error);
+    }
+
+    // First sign-in on a browser that already has brews saved: offer to upload them
+    async function offerLocalUpload() {
+      let local = [];
+      try { local = JSON.parse(localStorage.getItem(OLD_STORAGE_KEY)) || []; } catch {}
+      if (!local.length) return;
+      if (!confirm(`Found ${local.length} brew(s) saved in this browser. Upload them to your account?`)) return;
+      if (await uploadBrews(local)) {
+        // Keep a backup copy under a new name instead of deleting it outright
+        try {
+          localStorage.setItem(OLD_STORAGE_KEY + '-uploaded', JSON.stringify(local));
+          localStorage.removeItem(OLD_STORAGE_KEY);
+        } catch {}
+      }
+    }
+
+    // ---------- Signing in & out ----------
+    async function showSignedIn() {
+      $('authView').hidden = true;
+      $('appView').hidden = false;
+      $('userEmail').textContent = user.email;
+      brews = loadCache();
+      render();
+      await offerLocalUpload();
+      await fetchBrews();
+    }
+
+    function showSignedOut() {
+      $('appView').hidden = true;
+      $('authView').hidden = false;
+      brews = [];
+    }
+
+    db.auth.onAuthStateChange((event, session) => {
+      const newUser = session?.user || null;
+      // A token refresh for the same person: nothing to do (but always draw the first screen)
+      if (event !== 'INITIAL_SESSION' && newUser?.id === user?.id) return;
+      user = newUser;
+      // setTimeout lets Supabase finish its own work before we query the database
+      setTimeout(() => user ? showSignedIn() : showSignedOut(), 0);
+    });
+
+    function authMessage(text, isError = false) {
+      $('authMsg').textContent = text;
+      $('authMsg').className = 'msg' + (isError ? ' err' : '');
+    }
+
+    $('authForm').onsubmit = async (e) => {
+      e.preventDefault();
+      authMessage('Signing in…');
+      const { error } = await db.auth.signInWithPassword({
+        email: $('authEmail').value.trim(),
+        password: $('authPassword').value,
+      });
+      authMessage(error ? error.message : '', !!error);
+    };
+
+    $('signUpBtn').onclick = async () => {
+      if (!$('authForm').reportValidity()) return;
+      authMessage('Creating account…');
+      const { data, error } = await db.auth.signUp({
+        email: $('authEmail').value.trim(),
+        password: $('authPassword').value,
+        options: { emailRedirectTo: location.origin + location.pathname },
+      });
+      if (error) return authMessage(error.message, true);
+      if (!data.session) authMessage('Almost done! Check your email and click the confirmation link, then sign in here.');
+    };
+
+    $('logoutBtn').onclick = async () => {
+      try { localStorage.removeItem(cacheKey()); } catch {}
+      await db.auth.signOut();
+    };
+
+    // When you come back to the app (e.g. switch tabs or reopen it on your phone), grab the latest brews
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && user) fetchBrews();
+    });
 
     // Coffee-growing countries, used for the Origin suggestions
     const COUNTRIES = [
@@ -529,22 +696,27 @@
 
     form.onsubmit = () => {
       const data = readForm();
+      let brew;
       if (editingId) {
         const i = brews.findIndex(b => b.id === editingId);
-        brews[i] = { ...brews[i], ...data };
+        brew = brews[i] = { ...brews[i], ...data };
       } else {
-        brews.push({ id: crypto.randomUUID(), ...data });
+        brew = { id: crypto.randomUUID(), ...data };
+        brews.push(brew);
       }
-      saveBrews();
+      cacheBrews();
       render();
+      uploadBrews([brew]);
     };
 
     $('deleteBtn').onclick = () => {
       if (!confirm('Delete this brew?')) return;
-      brews = brews.filter(b => b.id !== editingId);
-      saveBrews();
+      const id = editingId;
+      brews = brews.filter(b => b.id !== id);
+      cacheBrews();
       $('dlg').close();
       render();
+      deleteBrewOnline(id);
     };
 
     $('dupBtn').onclick = () => {
@@ -579,16 +751,15 @@
         const known = new Set(brews.map(b => b.id));
         const added = incoming.filter(b => b.id && !known.has(b.id));
         brews.push(...added);
-        saveBrews();
+        cacheBrews();
         render();
+        if (added.length) uploadBrews(added);
         alert(`Imported ${added.length} brew(s).`);
       } catch {
         alert('That file could not be read.');
       }
       e.target.value = '';
     };
-
-    render();
   </script>
 </body>
 </html>
