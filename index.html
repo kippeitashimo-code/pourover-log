@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pourover Log</title>
+
+  <!-- ============================================================
+       STYLES (CSS): how the page looks
+       ============================================================ -->
+  <style>
+    :root {
+      --bg: #f7f3ee;
+      --card: #ffffff;
+      --text: #2b2420;
+      --muted: #8a7f76;
+      --line: #e6ded5;
+      --accent: #8b5a3c;
+      --accent-soft: #f1e6dc;
+      --danger: #b23b3b;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1c1917;
+        --card: #262220;
+        --text: #f1ebe5;
+        --muted: #a39890;
+        --line: #3a3430;
+        --accent: #d49a6a;
+        --accent-soft: #3a2e26;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
+
+    header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    h1 { margin: 0; font-size: 1.6rem; }
+    h1 span { color: var(--accent); }
+
+    button {
+      font: inherit; cursor: pointer; border-radius: 8px;
+      border: 1px solid var(--line); background: var(--card); color: var(--text);
+      padding: 8px 14px;
+    }
+    button:hover { border-color: var(--accent); }
+    button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    button.danger { color: var(--danger); }
+    button.small { padding: 4px 10px; font-size: .85rem; }
+
+    input, select, textarea {
+      font: inherit; width: 100%; padding: 8px 10px; border-radius: 8px;
+      border: 1px solid var(--line); background: var(--bg); color: var(--text);
+    }
+    textarea { resize: vertical; min-height: 60px; }
+    label { display: block; font-size: .8rem; color: var(--muted); margin-bottom: 4px; }
+
+    /* Search & filter bar */
+    .filters { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 10px; margin: 20px 0; }
+    @media (max-width: 640px) { .filters { grid-template-columns: 1fr 1fr; } .filters .search { grid-column: 1 / -1; } }
+
+    /* Recipe cards */
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+    .card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+      padding: 16px; cursor: pointer; transition: border-color .15s;
+    }
+    .card:hover { border-color: var(--accent); }
+    .card h3 { margin: 0 0 2px; font-size: 1.05rem; }
+    .card .sub { color: var(--muted); font-size: .85rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 6px; }
+    .chip { background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 10px; font-size: .8rem; }
+    .stars { color: var(--accent); letter-spacing: 2px; }
+    .empty { text-align: center; color: var(--muted); padding: 60px 0; }
+
+    /* Grid / List switch */
+    .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+    .seg button { border: none; border-radius: 0; }
+    .seg button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+    /* List view (table) — scrolls sideways on its own on small screens */
+    .table-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    th { color: var(--muted); font-weight: 500; font-size: .8rem; }
+    tbody tr { cursor: pointer; }
+    tbody tr:hover { background: var(--accent-soft); }
+    tbody tr:last-child td { border-bottom: none; }
+
+    /* Form popup (dialog) */
+    dialog {
+      border: none; border-radius: 14px; padding: 0; width: min(720px, calc(100% - 32px));
+      background: var(--card); color: var(--text);
+    }
+    dialog::backdrop { background: rgba(0,0,0,.45); }
+    .dlg-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+    .dlg-head h2 { margin: 0; font-size: 1.2rem; }
+    .dlg-body { padding: 16px 20px; max-height: 70vh; overflow-y: auto; }
+    .dlg-foot { display: flex; justify-content: space-between; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--line); }
+    fieldset { border: none; padding: 0; margin: 0 0 20px; }
+    legend { font-weight: 600; margin-bottom: 10px; color: var(--accent); }
+    .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 10px; }
+    .ratio { font-size: .9rem; color: var(--muted); }
+    .inline { display: flex; gap: 6px; }
+    .inline select { width: auto; }
+    .cal { position: relative; flex: none; }
+    .cal button { height: 100%; padding: 0 10px; display: flex; align-items: center; }
+    .cal button svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; }
+    /* Invisible native date input, only used to show the calendar popup */
+    .cal input[type="date"] { position: absolute; inset: 0; opacity: 0; pointer-events: none; padding: 0; }
+    .date-input:invalid { border-color: var(--danger); }
+
+    /* Pour schedule rows */
+    .pour { display: grid; grid-template-columns: 80px 90px 1fr 32px; gap: 8px; margin-bottom: 6px; align-items: center; }
+    .pour button { padding: 6px; }
+
+    /* Star rating picker */
+    .rating-pick button { border: none; background: none; font-size: 1.5rem; padding: 0 2px; color: var(--line); }
+    .rating-pick button.on { color: var(--accent); }
+
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <!-- ============================================================
+       PAGE STRUCTURE (HTML): what's on the page
+       ============================================================ -->
+  <div class="wrap">
+    <header>
+      <h1>Pourover <span>Log</span></h1>
+      <div class="toolbar">
+        <div class="seg" id="viewToggle">
+          <button type="button" data-view="grid">Grid</button>
+          <button type="button" data-view="list">List</button>
+        </div>
+        <button id="exportBtn" title="Download a backup file">Export</button>
+        <button id="importBtn" title="Load a backup file">Import</button>
+        <input type="file" id="importFile" accept=".json" hidden>
+        <button class="primary" id="newBtn">+ New brew</button>
+      </div>
+    </header>
+
+    <div class="filters">
+      <div class="search">
+        <label for="q">Search</label>
+        <input id="q" placeholder="Bean, roaster, origin, notes…">
+      </div>
+      <div>
+        <label for="fBrewer">Brewer</label>
+        <select id="fBrewer"><option value="">All</option></select>
+      </div>
+      <div>
+        <label for="fRating">Min rating</label>
+        <select id="fRating">
+          <option value="0">Any</option>
+          <option value="3">★★★+</option>
+          <option value="4">★★★★+</option>
+          <option value="5">★★★★★</option>
+        </select>
+      </div>
+      <div>
+        <label for="sort">Sort</label>
+        <select id="sort">
+          <option value="new">Newest</option>
+          <option value="old">Oldest</option>
+          <option value="rating">Rating</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="list" class="grid"></div>
+  </div>
+
+  <!-- The add/edit form, shown as a popup -->
+  <dialog id="dlg">
+    <form id="form" method="dialog">
+      <div class="dlg-head">
+        <h2 id="dlgTitle">New brew</h2>
+        <button type="button" class="small" id="closeBtn">✕</button>
+      </div>
+
+      <div class="dlg-body">
+        <fieldset>
+          <legend>Coffee</legend>
+          <div class="row">
+            <div><label>Bean / name</label><input name="bean" required placeholder="e.g. Kochere"></div>
+            <div><label>Roaster</label><input name="roaster"></div>
+            <div><label>Variety</label><input name="variety" list="varietyList" placeholder="Gesha, SL28…" autocomplete="off"></div>
+          </div>
+          <div class="row">
+            <div><label>Origin</label><input name="origin" list="countryList" placeholder="Start typing a country…" autocomplete="off"></div>
+            <div><label>Process</label><input name="process" list="processList" placeholder="Washed, Natural…"></div>
+            <div><label>Roast date</label><div class="inline date-field"><input name="roastDate" class="date-input" inputmode="numeric" placeholder="yyyy/mm/dd"></div></div>
+            <div><label>Brew date</label><div class="inline date-field"><input name="brewDate" class="date-input" inputmode="numeric" placeholder="yyyy/mm/dd"></div></div>
+          </div>
+          <datalist id="processList">
+            <option>Washed</option><option>Natural</option><option>Honey</option><option>Anaerobic</option>
+          </datalist>
+          <datalist id="countryList"></datalist>
+          <datalist id="varietyList"></datalist>
+        </fieldset>
+
+        <fieldset>
+          <legend>Recipe</legend>
+          <div class="row">
+            <div><label>Dose (g)</label><input name="dose" type="number" step="0.1" min="0"></div>
+            <div><label>Water (g)</label><input name="water" type="number" step="1" min="0"></div>
+            <div><label>Ratio</label><div class="ratio" id="ratioOut">—</div></div>
+          </div>
+          <div class="row">
+            <div><label>Brewer</label><input name="brewer" list="brewerList" placeholder="V60, Kalita…"></div>
+            <div><label>Grinder</label><input name="grinder" list="grinderList"></div>
+            <div><label>Grind setting</label><input name="grind"></div>
+          </div>
+          <div class="row">
+            <div>
+              <label>Water temp</label>
+              <div class="inline">
+                <input name="temp" type="number" step="0.5">
+                <select name="tempUnit" id="tempUnit">
+                  <option value="C">°C</option>
+                  <option value="F">°F</option>
+                </select>
+              </div>
+            </div>
+            <div><label>Total time</label><input name="time" class="time-input" inputmode="numeric" placeholder="type 300 → 3:00"></div>
+          </div>
+          <datalist id="brewerList"></datalist>
+          <datalist id="grinderList"></datalist>
+        </fieldset>
+
+        <fieldset>
+          <legend>Pour schedule</legend>
+          <div class="pour" style="font-size:.8rem;color:var(--muted)">
+            <span>Time</span><span>To (g)</span><span>Note</span><span></span>
+          </div>
+          <div id="pours"></div>
+          <button type="button" class="small" id="addPour">+ Add pour</button>
+        </fieldset>
+
+        <fieldset>
+          <legend>Tasting</legend>
+          <label>Rating</label>
+          <div class="rating-pick" id="ratingPick"></div>
+          <div style="margin-top:10px"><label>Tasting notes</label><textarea name="notes" placeholder="Jasmine, bergamot, clean finish…"></textarea></div>
+          <div style="margin-top:10px"><label>Next time, change…</label><textarea name="nextTime" placeholder="Grind a little finer"></textarea></div>
+        </fieldset>
+      </div>
+
+      <div class="dlg-foot">
+        <div class="toolbar">
+          <button type="button" class="danger" id="deleteBtn">Delete</button>
+          <button type="button" id="dupBtn" title="Copy this recipe as a new brew">Brew again</button>
+        </div>
+        <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ============================================================
+       BEHAVIOR (JavaScript): what happens when you click things
+       ============================================================ -->
+  <script>
+    const STORAGE_KEY = 'pourover-log-v1';
+    const $ = (id) => document.getElementById(id);
+
+    // ---------- Saving & loading (stored in this browser) ----------
+    function loadBrews() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+      catch { return []; }
+    }
+    function saveBrews() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(brews));
+    }
+    let brews = loadBrews();
+
+    // Coffee-growing countries, used for the Origin suggestions
+    const COUNTRIES = [
+      'Australia', 'Bolivia', 'Brazil', 'Burundi', 'Cameroon', 'China', 'Colombia', 'Costa Rica',
+      "Côte d'Ivoire", 'Cuba', 'DR Congo', 'Dominican Republic', 'Ecuador', 'El Salvador', 'Ethiopia',
+      'Guatemala', 'Guinea', 'Haiti', 'Honduras', 'India', 'Indonesia', 'Jamaica', 'Japan', 'Kenya',
+      'Laos', 'Madagascar', 'Malawi', 'Malaysia', 'Mexico', 'Myanmar', 'Nepal', 'Nicaragua', 'Panama',
+      'Papua New Guinea', 'Peru', 'Philippines', 'Puerto Rico', 'Rwanda', 'Sierra Leone', 'Sri Lanka',
+      'Taiwan', 'Tanzania', 'Thailand', 'Timor-Leste', 'Togo', 'Uganda', 'United States (Hawaii)',
+      'Venezuela', 'Vietnam', 'Yemen', 'Zambia', 'Zimbabwe', 'Blend'
+    ];
+    $('countryList').innerHTML = COUNTRIES.map(c => `<option>${c}</option>`).join('');
+
+    // Common coffee varieties, used for the Variety suggestions
+    const VARIETIES = [
+      'Gesha', 'Bourbon', 'Red Bourbon', 'Yellow Bourbon', 'Pink Bourbon', 'Typica', 'Caturra', 'Catuai',
+      'SL28', 'SL34', 'Ruiru 11', 'Batian', 'Pacas', 'Pacamara', 'Maragogype', 'Mundo Novo', 'Villa Sarchi',
+      'Sidra', 'Wush Wush', 'Java', 'Laurina', 'Mokka', 'Castillo', 'Colombia', 'Catimor', 'Sarchimor',
+      'Parainema', 'Marsellesa', 'Ethiopian Landrace', '74110', '74158', 'Kurume', 'Eugenioides'
+    ];
+
+    // Grid or list view, remembered between visits
+    let view = 'grid';
+    try { view = localStorage.getItem('pourover-log-view') || 'grid'; } catch {}
+    $('viewToggle').onclick = (e) => {
+      const v = e.target.dataset.view;
+      if (!v) return;
+      view = v;
+      try { localStorage.setItem('pourover-log-view', view); } catch {}
+      render();
+    };
+
+    // ---------- Small helpers ----------
+    const today = () => new Date().toISOString().slice(0, 10);
+    // Dates are saved as 2026-10-23 (sorts correctly) but shown as 2026/10/23
+    const toDisplayDate = (d) => (d || '').replaceAll('-', '/');
+    const toSavedDate = (d) => (d || '').replaceAll('/', '-');
+    const stars = (n) => '★'.repeat(n || 0) + '☆'.repeat(5 - (n || 0));
+    const ratio = (dose, water) => (dose > 0 && water > 0) ? `1:${(water / dose).toFixed(1)}` : '—';
+    const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    // ---------- Drawing the list of recipe cards ----------
+    function render() {
+      const q = $('q').value.trim().toLowerCase();
+      const brewer = $('fBrewer').value;
+      const minRating = Number($('fRating').value);
+
+      let shown = brews.filter(b => {
+        const haystack = [b.bean, b.roaster, b.origin, b.variety, b.process, b.brewer, b.grinder, b.notes].join(' ').toLowerCase();
+        return (!q || haystack.includes(q))
+          && (!brewer || b.brewer === brewer)
+          && (b.rating || 0) >= minRating;
+      });
+
+      const sort = $('sort').value;
+      shown.sort((a, b) =>
+        sort === 'rating' ? (b.rating || 0) - (a.rating || 0)
+        : sort === 'old' ? (a.brewDate || '').localeCompare(b.brewDate || '')
+        : (b.brewDate || '').localeCompare(a.brewDate || ''));
+
+      $('list').className = (view === 'list' && shown.length) ? 'table-wrap' : 'grid';
+      document.querySelectorAll('#viewToggle button').forEach(btn =>
+        btn.classList.toggle('on', btn.dataset.view === view));
+
+      if (!brews.length) {
+        $('list').innerHTML = `<div class="empty" style="grid-column:1/-1">No brews yet. Click <b>+ New brew</b> to log your first one.</div>`;
+      } else if (!shown.length) {
+        $('list').innerHTML = `<div class="empty" style="grid-column:1/-1">No brews match your search.</div>`;
+      } else if (view === 'list') {
+        $('list').innerHTML = `
+          <table>
+            <thead><tr>
+              <th>Date</th><th>Bean</th><th>Roaster</th><th>Origin</th><th>Variety</th><th>Process</th>
+              <th>Brewer</th><th>Recipe</th><th>Temp</th><th>Time</th><th>Rating</th>
+            </tr></thead>
+            <tbody>
+              ${shown.map(b => `
+                <tr data-id="${b.id}">
+                  <td>${escapeHtml(toDisplayDate(b.brewDate))}</td>
+                  <td><b>${escapeHtml(b.bean)}</b></td>
+                  <td>${escapeHtml(b.roaster)}</td>
+                  <td>${escapeHtml(b.origin)}</td>
+                  <td>${escapeHtml(b.variety)}</td>
+                  <td>${escapeHtml(b.process)}</td>
+                  <td>${escapeHtml(b.brewer)}</td>
+                  <td>${b.dose && b.water ? `${b.dose}g : ${b.water}g (${ratio(b.dose, b.water)})` : ''}</td>
+                  <td>${b.temp ? `${b.temp}°${b.tempUnit || 'C'}` : ''}</td>
+                  <td>${escapeHtml(b.time)}</td>
+                  <td class="stars">${stars(b.rating)}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>`;
+      } else {
+        $('list').innerHTML = shown.map(b => `
+          <div class="card" data-id="${b.id}">
+            <h3>${escapeHtml(b.bean)}</h3>
+            <div class="sub">${escapeHtml([b.roaster, b.origin, b.variety, b.process].filter(Boolean).join(' · '))}</div>
+            <div class="chips">
+              ${b.brewer ? `<span class="chip">${escapeHtml(b.brewer)}</span>` : ''}
+              ${b.dose && b.water ? `<span class="chip">${b.dose}g : ${b.water}g (${ratio(b.dose, b.water)})</span>` : ''}
+              ${b.temp ? `<span class="chip">${b.temp}°${b.tempUnit || 'C'}</span>` : ''}
+              ${b.time ? `<span class="chip">${escapeHtml(b.time)}</span>` : ''}
+            </div>
+            <div class="stars">${stars(b.rating)}</div>
+            <div class="sub">${escapeHtml(toDisplayDate(b.brewDate))}</div>
+          </div>`).join('');
+      }
+
+      refreshDropdowns();
+    }
+
+    // Fill the brewer filter + autocomplete with values you've used before
+    function refreshDropdowns() {
+      const unique = (key) => [...new Set(brews.map(b => b[key]).filter(Boolean))].sort();
+      const current = $('fBrewer').value;
+      $('fBrewer').innerHTML = '<option value="">All</option>' +
+        unique('brewer').map(v => `<option ${v === current ? 'selected' : ''}>${escapeHtml(v)}</option>`).join('');
+      const defaults = { brewer: ['V60', 'Kalita Wave', 'Origami', 'Chemex', 'April', 'Orea'] };
+      $('brewerList').innerHTML = [...new Set([...unique('brewer'), ...defaults.brewer])].map(v => `<option>${escapeHtml(v)}</option>`).join('');
+      $('grinderList').innerHTML = unique('grinder').map(v => `<option>${escapeHtml(v)}</option>`).join('');
+      $('varietyList').innerHTML = [...new Set([...unique('variety'), ...VARIETIES])].map(v => `<option>${escapeHtml(v)}</option>`).join('');
+    }
+
+    // ---------- The add/edit form ----------
+    const form = $('form');
+    let editingId = null;
+    let currentRating = 0;
+
+    function addPourRow(p = {}) {
+      const row = document.createElement('div');
+      row.className = 'pour';
+      row.innerHTML = `
+        <input class="time-input" inputmode="numeric" placeholder="0:00" value="${escapeHtml(p.t)}">
+        <input type="number" placeholder="50" value="${escapeHtml(p.g)}">
+        <input placeholder="bloom, swirl…" value="${escapeHtml(p.note)}">
+        <button type="button" title="Remove">✕</button>`;
+      row.querySelector('button').onclick = () => row.remove();
+      $('pours').appendChild(row);
+    }
+
+    function drawRating() {
+      $('ratingPick').innerHTML = [1, 2, 3, 4, 5].map(n =>
+        `<button type="button" data-n="${n}" class="${n <= currentRating ? 'on' : ''}">★</button>`).join('');
+    }
+    $('ratingPick').onclick = (e) => {
+      const n = Number(e.target.dataset.n);
+      if (!n) return;
+      currentRating = (n === currentRating) ? 0 : n; // click same star again to clear
+      drawRating();
+    };
+
+    // Time fields: type digits only and they fill in from the right, like a microwave.
+    // "45" → 0:45, "130" → 1:30, "1030" → 10:30
+    function formatTime(value) {
+      const digits = value.replace(/\D/g, '').replace(/^0+/, '').slice(-4);
+      if (!digits) return '';
+      const padded = digits.padStart(3, '0');
+      return `${Number(padded.slice(0, -2))}:${padded.slice(-2)}`;
+    }
+    // Date fields: type digits only and the slashes are added for you.
+    // "20261023" → 2026/10/23
+    function formatDate(value) {
+      const d = value.replace(/\D/g, '').slice(0, 8);
+      return [d.slice(0, 4), d.slice(4, 6), d.slice(6, 8)].filter(Boolean).join('/');
+    }
+    function isValidDate(value) {
+      if (!value) return true; // empty is fine
+      const m = value.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+      if (!m) return false;
+      const date = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00`);
+      return date.getMonth() + 1 === Number(m[2]) && date.getDate() === Number(m[3]);
+    }
+    function checkDate(input) {
+      input.setCustomValidity(isValidDate(input.value) ? '' : 'Enter a full date, like 2026/10/23');
+    }
+
+    form.addEventListener('input', (e) => {
+      const el = e.target;
+      if (el.classList.contains('time-input')) el.value = formatTime(el.value);
+      if (el.classList.contains('date-input')) { el.value = formatDate(el.value); checkDate(el); }
+    });
+
+    // Add a calendar button next to each date field
+    const CAL_ICON = '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
+    document.querySelectorAll('.date-field').forEach(field => {
+      const text = field.querySelector('.date-input');
+      const cal = document.createElement('span');
+      cal.className = 'cal';
+      cal.innerHTML = `<button type="button" title="Pick from calendar">${CAL_ICON}</button><input type="date" tabindex="-1">`;
+      const picker = cal.querySelector('input');
+      cal.querySelector('button').onclick = () => {
+        picker.value = isValidDate(text.value) ? toSavedDate(text.value) : '';
+        try { picker.showPicker(); } catch { picker.focus(); }
+      };
+      picker.onchange = () => { text.value = toDisplayDate(picker.value); checkDate(text); };
+      field.appendChild(cal);
+    });
+
+    // Switching °C/°F converts the number already typed in
+    $('tempUnit').onchange = () => {
+      const t = Number(form.temp.value);
+      if (!form.temp.value || isNaN(t)) return;
+      form.temp.value = form.tempUnit.value === 'F'
+        ? Math.round(t * 9 / 5 + 32)
+        : Math.round((t - 32) * 5 / 9 * 2) / 2;
+    };
+
+    function updateRatio() {
+      $('ratioOut').textContent = ratio(Number(form.dose.value), Number(form.water.value));
+    }
+    form.dose.oninput = form.water.oninput = updateRatio;
+
+    function openForm(brew, mode) {
+      form.reset();
+      $('pours').innerHTML = '';
+      editingId = mode === 'edit' ? brew.id : null;
+      $('dlgTitle').textContent = mode === 'edit' ? 'Edit brew' : 'New brew';
+      $('deleteBtn').style.display = $('dupBtn').style.display = mode === 'edit' ? '' : 'none';
+
+      // New brews default to whichever temp unit you used last
+      const lastUnit = brews.length ? brews[brews.length - 1].tempUnit : null;
+      const data = brew || { brewDate: today(), tempUnit: lastUnit || 'C', pours: [{ t: '0:00', g: '', note: 'bloom' }] };
+      for (const el of form.elements) {
+        if (el.name && el.name in data) el.value = data[el.name] ?? '';
+      }
+      if (mode === 'copy') form.brewDate.value = today();
+      form.querySelectorAll('.date-input').forEach(el => { el.value = toDisplayDate(el.value); checkDate(el); });
+      (data.pours || []).forEach(addPourRow);
+      currentRating = mode === 'copy' ? 0 : (data.rating || 0);
+      drawRating();
+      updateRatio();
+      $('dlg').showModal();
+    }
+
+    function readForm() {
+      const f = Object.fromEntries(new FormData(form));
+      ['dose', 'water', 'temp'].forEach(k => f[k] = f[k] === '' ? '' : Number(f[k]));
+      f.roastDate = toSavedDate(f.roastDate);
+      f.brewDate = toSavedDate(f.brewDate);
+      f.pours = [...$('pours').children].map(row => {
+        const [t, g, note] = row.querySelectorAll('input');
+        return { t: t.value, g: g.value, note: note.value };
+      }).filter(p => p.t || p.g || p.note);
+      f.rating = currentRating;
+      return f;
+    }
+
+    form.onsubmit = () => {
+      const data = readForm();
+      if (editingId) {
+        const i = brews.findIndex(b => b.id === editingId);
+        brews[i] = { ...brews[i], ...data };
+      } else {
+        brews.push({ id: crypto.randomUUID(), ...data });
+      }
+      saveBrews();
+      render();
+    };
+
+    $('deleteBtn').onclick = () => {
+      if (!confirm('Delete this brew?')) return;
+      brews = brews.filter(b => b.id !== editingId);
+      saveBrews();
+      $('dlg').close();
+      render();
+    };
+
+    $('dupBtn').onclick = () => {
+      const original = brews.find(b => b.id === editingId);
+      $('dlg').close();
+      openForm(original, 'copy');
+    };
+
+    $('closeBtn').onclick = () => $('dlg').close();
+    $('addPour').onclick = () => addPourRow();
+    $('newBtn').onclick = () => openForm(null, 'new');
+    $('list').onclick = (e) => {
+      const item = e.target.closest('[data-id]');
+      if (item) openForm(brews.find(b => b.id === item.dataset.id), 'edit');
+    };
+    ['q', 'fBrewer', 'fRating', 'sort'].forEach(id => $(id).oninput = render);
+
+    // ---------- Backup: export / import ----------
+    $('exportBtn').onclick = () => {
+      const blob = new Blob([JSON.stringify(brews, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `pourover-log-${today()}.json`;
+      a.click();
+    };
+    $('importBtn').onclick = () => $('importFile').click();
+    $('importFile').onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const incoming = JSON.parse(await file.text());
+        const known = new Set(brews.map(b => b.id));
+        const added = incoming.filter(b => b.id && !known.has(b.id));
+        brews.push(...added);
+        saveBrews();
+        render();
+        alert(`Imported ${added.length} brew(s).`);
+      } catch {
+        alert('That file could not be read.');
+      }
+      e.target.value = '';
+    };
+
+    render();
+  </script>
+</body>
+</html>
