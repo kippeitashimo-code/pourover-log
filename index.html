@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Pourover Log</title>
 
   <!-- ============================================================
@@ -39,7 +39,10 @@
       color: var(--text);
       line-height: 1.45;
     }
-    .wrap { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
+    .wrap {
+      max-width: 960px; margin: 0 auto;
+      padding: 24px max(16px, env(safe-area-inset-right)) 64px max(16px, env(safe-area-inset-left));
+    }
 
     header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
     h1 { margin: 0; font-size: 1.6rem; }
@@ -80,10 +83,53 @@
     .stars { color: var(--accent); letter-spacing: 2px; }
     .empty { text-align: center; color: var(--muted); padding: 60px 0; }
 
-    /* Grid / List switch */
-    .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-    .seg button { border: none; border-radius: 0; }
-    .seg button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+    /* Grid / List switch: a single icon button showing the *other* view */
+    .icon-btn { display: flex; align-items: center; justify-content: center; padding: 8px 10px; }
+    .icon-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
+
+    /* Floating "+" button (phones only) with a menu that slides up out of it */
+    .fab {
+      display: none; position: fixed; z-index: 10;
+      right: calc(20px + env(safe-area-inset-right));
+      bottom: calc(20px + env(safe-area-inset-bottom));
+    }
+    .fab-btn {
+      position: relative; z-index: 1; width: 56px; height: 56px; padding: 0; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--accent); color: #fff; border: none;
+      box-shadow: 0 4px 14px rgba(0,0,0,.25);
+      -webkit-tap-highlight-color: transparent;
+      transition: transform .15s;
+    }
+    .fab-btn:active { transform: scale(.94); }
+    .fab-btn svg {
+      width: 26px; height: 26px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round;
+      transition: transform .25s cubic-bezier(.2, .8, .2, 1);
+    }
+    .fab.open .fab-btn svg { transform: rotate(45deg); }
+    .fab-item {
+      position: absolute; right: 0; bottom: 7px; white-space: nowrap;
+      border-radius: 999px; padding: 10px 18px; box-shadow: 0 4px 14px rgba(0,0,0,.2);
+      /* Closed: tucked behind the + button, small and invisible */
+      opacity: 0; visibility: hidden; pointer-events: none;
+      transform: translateY(0) scale(.6); transform-origin: right center;
+      transition: transform .22s cubic-bezier(.4, 0, .2, 1), opacity .18s ease, visibility 0s linear .22s;
+    }
+    .fab.open .fab-item {
+      /* Open: each item (--i = 1, 2…) slides up to its own spot above the + button */
+      opacity: 1; visibility: visible; pointer-events: auto;
+      transform: translateY(calc(var(--i) * -54px - 10px)) scale(1);
+      transition: transform .28s cubic-bezier(.2, .8, .2, 1) calc((var(--i) - 1) * 40ms),
+                  opacity .2s ease calc((var(--i) - 1) * 40ms), visibility 0s;
+    }
+    @media (max-width: 640px) {
+      .fab { display: block; }
+      #newBtn, #importBtn { display: none; } /* the floating button covers these on phones */
+      .wrap { padding-bottom: calc(110px + env(safe-area-inset-bottom)); } /* last card stays clear of it */
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .fab-item, .fab-btn svg { transition-duration: .01s !important; transition-delay: 0s !important; }
+    }
 
     /* List view (table) — scrolls sideways on its own on small screens */
     .table-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
@@ -172,11 +218,10 @@
     <header>
       <h1>Pourover <span>Log</span></h1>
       <div class="toolbar">
-        <div class="seg" id="viewToggle">
-          <button type="button" data-view="grid">Grid</button>
-          <button type="button" data-view="list">List</button>
-        </div>
-        <button id="exportBtn" title="Download a backup file">Export</button>
+        <button type="button" class="icon-btn" id="viewToggle"></button>
+        <button id="exportBtn" class="icon-btn" title="Export a backup file" aria-label="Export a backup file">
+          <svg viewBox="0 0 24 24" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M8 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2"/></svg>
+        </button>
         <button id="importBtn" title="Load a backup file">Import</button>
         <input type="file" id="importFile" accept=".json" hidden>
         <button class="primary" id="newBtn">+ New brew</button>
@@ -217,6 +262,15 @@
     </div>
 
     <div id="list" class="grid"></div>
+
+    <!-- Floating + button for phones; its menu slides up out of it -->
+    <div class="fab" id="fab">
+      <button type="button" class="fab-item" id="fabImport" style="--i: 2" tabindex="-1">Import</button>
+      <button type="button" class="fab-item primary" id="fabNew" style="--i: 1" tabindex="-1">New brew</button>
+      <button type="button" class="fab-btn" id="fabBtn" aria-label="Open menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
   </div>
 
   <!-- The add/edit form, shown as a popup -->
@@ -471,10 +525,18 @@
     // Grid or list view, remembered between visits
     let view = 'grid';
     try { view = localStorage.getItem('pourover-log-view') || 'grid'; } catch {}
-    $('viewToggle').onclick = (e) => {
-      const v = e.target.dataset.view;
-      if (!v) return;
-      view = v;
+    const LIST_ICON = '<svg viewBox="0 0 24 24"><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/><path d="M9 6h12M9 12h12M9 18h12"/></svg>';
+    const GRID_ICON = '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>';
+
+    // The button shows the view you'd switch *to*
+    function updateViewToggle() {
+      const next = view === 'grid' ? 'list' : 'grid';
+      $('viewToggle').innerHTML = next === 'list' ? LIST_ICON : GRID_ICON;
+      $('viewToggle').title = `Switch to ${next} view`;
+      $('viewToggle').setAttribute('aria-label', `Switch to ${next} view`);
+    }
+    $('viewToggle').onclick = () => {
+      view = view === 'grid' ? 'list' : 'grid';
       try { localStorage.setItem('pourover-log-view', view); } catch {}
       render();
     };
@@ -508,8 +570,7 @@
         : (b.brewDate || '').localeCompare(a.brewDate || ''));
 
       $('list').className = (view === 'list' && shown.length) ? 'table-wrap' : 'grid';
-      document.querySelectorAll('#viewToggle button').forEach(btn =>
-        btn.classList.toggle('on', btn.dataset.view === view));
+      updateViewToggle();
 
       if (!brews.length) {
         $('list').innerHTML = `<div class="empty" style="grid-column:1/-1">No brews yet. Click <b>+ New brew</b> to log your first one.</div>`;
@@ -728,6 +789,20 @@
     $('closeBtn').onclick = () => $('dlg').close();
     $('addPour').onclick = () => addPourRow();
     $('newBtn').onclick = () => openForm(null, 'new');
+
+    // ---------- Floating + button (phones) ----------
+    function setFabOpen(open) {
+      $('fab').classList.toggle('open', open);
+      $('fabBtn').setAttribute('aria-expanded', open);
+      $('fabBtn').setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+      document.querySelectorAll('.fab-item').forEach(item => item.tabIndex = open ? 0 : -1);
+    }
+    $('fabBtn').onclick = () => setFabOpen(!$('fab').classList.contains('open'));
+    $('fabNew').onclick = () => { setFabOpen(false); openForm(null, 'new'); };
+    $('fabImport').onclick = () => { setFabOpen(false); $('importFile').click(); };
+    // Tapping anywhere else, or pressing Escape, closes the menu
+    document.addEventListener('click', (e) => { if (!$('fab').contains(e.target)) setFabOpen(false); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setFabOpen(false); });
     $('list').onclick = (e) => {
       const item = e.target.closest('[data-id]');
       if (item) openForm(brews.find(b => b.id === item.dataset.id), 'edit');
