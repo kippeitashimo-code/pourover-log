@@ -65,9 +65,21 @@
     textarea { resize: vertical; min-height: 60px; }
     label { display: block; font-size: .8rem; color: var(--muted); margin-bottom: 4px; }
 
-    /* Search & filter bar */
-    .filters { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 10px; margin: 20px 0; }
+    /* Search & filter bar: folded away behind the filter button, slides open below the header */
+    .filter-panel {
+      display: grid; grid-template-rows: 0fr; opacity: 0;
+      transition: grid-template-rows .3s cubic-bezier(.4, 0, .2, 1), opacity .2s ease;
+    }
+    .filter-panel.open { grid-template-rows: 1fr; opacity: 1; }
+    /* Extra 3px around the inside so focus outlines aren't cut off */
+    .filter-inner { min-height: 0; overflow: hidden; padding: 3px; margin: -3px; }
+    .filters {
+      display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 10px; padding-top: 20px;
+      transform: translateY(-8px); transition: transform .3s cubic-bezier(.2, .8, .2, 1);
+    }
+    .filter-panel.open .filters { transform: none; }
     @media (max-width: 640px) { .filters { grid-template-columns: 1fr 1fr; } .filters .search { grid-column: 1 / -1; } }
+    #list { margin-top: 20px; }
 
     /* Recipe cards */
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
@@ -84,8 +96,45 @@
     .empty { text-align: center; color: var(--muted); padding: 60px 0; }
 
     /* Grid / List switch: a single icon button showing the *other* view */
-    .icon-btn { display: flex; align-items: center; justify-content: center; padding: 8px 10px; }
+    .icon-btn { position: relative; display: flex; align-items: center; justify-content: center; padding: 8px 10px; }
     .icon-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
+    /* An icon button whose panel or menu is open */
+    .icon-btn[aria-expanded="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+    /* Small dot on an icon button: filters are in use, or (in red) syncing failed */
+    .icon-btn.has-badge::after {
+      content: ''; position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent); box-shadow: 0 0 0 2px var(--card);
+    }
+    .icon-btn.has-badge.warn::after { background: var(--danger); }
+
+    /* Account menu: drops down under the account button */
+    .menu-wrap { position: relative; }
+    .menu {
+      position: absolute; z-index: 20; top: calc(100% + 8px); right: 0;
+      width: min(280px, calc(100vw - 32px));
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.14);
+      /* Closed: faded out and slightly shrunk toward the button */
+      opacity: 0; visibility: hidden; transform: translateY(-6px) scale(.97); transform-origin: top right;
+      transition: transform .18s cubic-bezier(.4, 0, .2, 1), opacity .15s ease, visibility 0s linear .18s;
+    }
+    .menu.open {
+      opacity: 1; visibility: visible; transform: none;
+      transition: transform .22s cubic-bezier(.2, .8, .2, 1), opacity .18s ease, visibility 0s;
+    }
+    /* Each block of the menu; new account features can be added as more sections */
+    .menu-section { padding: 12px 14px; }
+    .menu-section + .menu-section { border-top: 1px solid var(--line); }
+    .menu-section.actions { padding: 6px; }
+    .menu-label { font-size: .75rem; color: var(--muted); }
+    .menu-email { font-weight: 600; overflow-wrap: anywhere; }
+    .menu-status { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: .85rem; color: var(--muted); }
+    .menu-status::before { content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .menu-status:has(.err) { color: var(--danger); }
+    .menu-item {
+      display: block; width: 100%; text-align: left; border: none; background: none; border-radius: 8px; padding: 10px;
+    }
+    .menu-item:hover, .menu-item:focus-visible { background: var(--accent-soft); }
 
     /* Floating "+" button (phones only) with a menu that slides up out of it */
     .fab {
@@ -126,9 +175,12 @@
       .fab { display: block; }
       #newBtn, #importBtn { display: none; } /* the floating button covers these on phones */
       .wrap { padding-bottom: calc(110px + env(safe-area-inset-bottom)); } /* last card stays clear of it */
+      /* The toolbar may wrap onto two lines, so line the account menu up with the page edge instead */
+      header { position: relative; }
+      .menu-wrap { position: static; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .fab-item, .fab-btn svg { transition-duration: .01s !important; transition-delay: 0s !important; }
+      .fab-item, .fab-btn svg, .menu, .filter-panel, .filters { transition-duration: .01s !important; transition-delay: 0s !important; }
     }
 
     /* List view (table) — scrolls sideways on its own on small screens */
@@ -186,13 +238,7 @@
     .auth .actions { display: flex; gap: 8px; margin-top: 16px; }
     .auth .actions button { flex: 1; }
     .auth .msg { margin-top: 14px; font-size: .9rem; }
-    .msg.err, .account .err { color: var(--danger); }
-
-    /* Signed-in bar under the header */
-    .account {
-      display: flex; justify-content: flex-end; align-items: center; gap: 10px; flex-wrap: wrap;
-      margin-top: 10px; font-size: .85rem; color: var(--muted);
-    }
+    .msg.err { color: var(--danger); }
   </style>
 </head>
 <body>
@@ -219,20 +265,36 @@
       <h1>Pourover <span>Log</span></h1>
       <div class="toolbar">
         <button type="button" class="icon-btn" id="viewToggle"></button>
+        <button type="button" class="icon-btn" id="filterBtn" title="Search & filter" aria-label="Search & filter" aria-expanded="false" aria-controls="filterPanel">
+          <svg viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>
+        </button>
         <button id="exportBtn" class="icon-btn" title="Export a backup file" aria-label="Export a backup file">
           <svg viewBox="0 0 24 24" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M8 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2"/></svg>
         </button>
+        <div class="menu-wrap" id="accountWrap">
+          <button type="button" class="icon-btn" id="accountBtn" title="Account" aria-label="Account" aria-expanded="false" aria-controls="accountMenu">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+          </button>
+          <!-- Account menu. To add a feature, add another .menu-section, or a .menu-item button to the actions list -->
+          <div class="menu" id="accountMenu">
+            <div class="menu-section">
+              <div class="menu-label">Signed in as</div>
+              <div class="menu-email" id="userEmail"></div>
+              <div class="menu-status"><span id="syncStatus"></span></div>
+            </div>
+            <div class="menu-section actions">
+              <button type="button" class="menu-item danger" id="logoutBtn">Log out</button>
+            </div>
+          </div>
+        </div>
         <button id="importBtn" title="Load a backup file">Import</button>
         <input type="file" id="importFile" accept=".json" hidden>
         <button class="primary" id="newBtn">+ New brew</button>
       </div>
     </header>
-    <div class="account">
-      <span id="syncStatus"></span>
-      <span id="userEmail"></span>
-      <button class="small" id="logoutBtn">Log out</button>
-    </div>
 
+    <!-- Search & filter options, folded away until the filter button is pressed -->
+    <div class="filter-panel" id="filterPanel" inert><div class="filter-inner">
     <div class="filters">
       <div class="search">
         <label for="q">Search</label>
@@ -260,6 +322,7 @@
         </select>
       </div>
     </div>
+    </div></div>
 
     <div id="list" class="grid"></div>
 
@@ -393,6 +456,9 @@
     function setStatus(text, isError = false) {
       $('syncStatus').textContent = text;
       $('syncStatus').className = isError ? 'err' : '';
+      // The status lives inside the account menu, so flag problems on its button too
+      $('accountBtn').classList.toggle('has-badge', isError);
+      $('accountBtn').classList.toggle('warn', isError);
     }
 
     // ---------- Reading & writing brews online ----------
@@ -493,6 +559,7 @@
     };
 
     $('logoutBtn').onclick = async () => {
+      setAccountOpen(false);
       try { localStorage.removeItem(cacheKey()); } catch {}
       await db.auth.signOut();
     };
@@ -555,6 +622,8 @@
       const q = $('q').value.trim().toLowerCase();
       const brewer = $('fBrewer').value;
       const minRating = Number($('fRating').value);
+      // A dot on the filter button reminds you some brews are hidden, even when the panel is closed
+      $('filterBtn').classList.toggle('has-badge', !!(q || brewer || minRating));
 
       let shown = brews.filter(b => {
         const haystack = [b.bean, b.roaster, b.origin, b.variety, b.process, b.brewer, b.grinder, b.notes].join(' ').toLowerCase();
@@ -800,9 +869,34 @@
     $('fabBtn').onclick = () => setFabOpen(!$('fab').classList.contains('open'));
     $('fabNew').onclick = () => { setFabOpen(false); openForm(null, 'new'); };
     $('fabImport').onclick = () => { setFabOpen(false); $('importFile').click(); };
-    // Tapping anywhere else, or pressing Escape, closes the menu
-    document.addEventListener('click', (e) => { if (!$('fab').contains(e.target)) setFabOpen(false); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setFabOpen(false); });
+
+    // ---------- Search & filter panel ----------
+    function setFiltersOpen(open) {
+      $('filterPanel').classList.toggle('open', open);
+      $('filterPanel').inert = !open; // while folded away, its fields can't be tabbed into
+      $('filterBtn').setAttribute('aria-expanded', open);
+      // With a mouse, jump straight to the search box (skipped on phones so the keyboard doesn't pop up)
+      if (open && matchMedia('(pointer: fine)').matches) $('q').focus({ preventScroll: true });
+    }
+    $('filterBtn').onclick = () => setFiltersOpen(!$('filterPanel').classList.contains('open'));
+
+    // ---------- Account menu ----------
+    function setAccountOpen(open) {
+      $('accountMenu').classList.toggle('open', open);
+      $('accountBtn').setAttribute('aria-expanded', open);
+    }
+    $('accountBtn').onclick = () => setAccountOpen(!$('accountMenu').classList.contains('open'));
+
+    // Tapping anywhere else, or pressing Escape, closes the menus
+    document.addEventListener('click', (e) => {
+      if (!$('fab').contains(e.target)) setFabOpen(false);
+      if (!$('accountWrap').contains(e.target)) setAccountOpen(false);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      setFabOpen(false);
+      if ($('accountMenu').classList.contains('open')) { setAccountOpen(false); $('accountBtn').focus(); }
+    });
     $('list').onclick = (e) => {
       const item = e.target.closest('[data-id]');
       if (item) openForm(brews.find(b => b.id === item.dataset.id), 'edit');
