@@ -219,11 +219,8 @@
     }
     .panel-item:hover, .panel-item:focus-visible { background: var(--fill); }
 
-    /* Coffee Setup page: one box per category (Brewer, Grinder…), side by side on wide screens */
-    .gear-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-top: 20px; }
-    .gear-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .gear-head h2 { margin: 0; font-size: 1.05rem; }
-    .gear-groups .panel { max-width: none; margin-top: 8px; padding: 6px; }
+    /* Coffee Setup page: one section per category (Brewer, Grinder…), each a grid of cards like the Brew Log */
+    #gearGroups { margin-top: 20px; }
     .gear-name { display: block; font-weight: 600; overflow-wrap: anywhere; }
     .gear-sub { color: var(--muted); font-size: .8rem; }
     .panel-item .gear-sub { display: block; }
@@ -510,13 +507,13 @@
     </div>
   </section>
 
-  <!-- Page 3: Coffee Setup. Your equipment, one box per category; filled in by renderSetup() -->
+  <!-- Page 3: Coffee Setup. Your equipment, one section of cards per category; filled in by renderSetup() -->
   <section class="wrap" id="page-setup" hidden>
     <header>
       <h1>Coffee Setup</h1>
       <button type="button" class="primary" id="addGearBtn">+ Add equipment</button>
     </header>
-    <div class="gear-groups" id="gearGroups"></div>
+    <div id="gearGroups"></div>
 
     <!-- Floating + button for phones, in the same spot as on the Brew Log -->
     <div class="fab">
@@ -1729,27 +1726,25 @@
         : b[item.category + 'Id'] === item.id);
     }
 
-    // The Coffee Setup page: one box per category, listing your gear
+    // The Coffee Setup page: one section per category, each a grid of cards (like the Brew Log)
     function renderSetup() {
       $('gearGroups').innerHTML = GEAR_CATEGORIES.map(c => {
         const items = activeGear(c.key);
         return `
-          <div>
-            <div class="gear-head">
-              <h2>${c.label}</h2>
-            </div>
-            <div class="panel">
-              ${items.length ? items.map(g => {
-                const used = brewsUsing(g).length;
-                const sub = [g.type, used ? `Used in ${used} brew${used > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ');
-                return `
-                  <button type="button" class="panel-item" data-gear-id="${escapeHtml(g.id)}">
-                    <span class="gear-name">${escapeHtml(gearLabel(g))}</span>
-                    ${sub ? `<span class="gear-sub">${escapeHtml(sub)}</span>` : ''}
-                  </button>`;
-              }).join('') : `<div class="gear-empty">No ${c.plural} yet</div>`}
-            </div>
-          </div>`;
+          <section class="day">
+            <h2 class="day-head">${c.label}${items.length ? `<span>${items.length}</span>` : ''}</h2>
+            ${items.length ? `<div class="grid">${items.map(g => {
+              const used = brewsUsing(g).length;
+              return `
+                <div class="card" data-gear-id="${escapeHtml(g.id)}">
+                  <h3>${escapeHtml(gearLabel(g))}</h3>
+                  ${g.type ? `<div class="sub">${escapeHtml(g.type)}</div>` : ''}
+                  <ul class="facts">
+                    ${factHtml('cup', used ? `Used in ${used} brew${used > 1 ? 's' : ''}` : 'Not used yet')}
+                  </ul>
+                </div>`;
+            }).join('')}</div>` : `<div class="gear-empty">No ${c.plural} yet</div>`}
+          </section>`;
       }).join('');
     }
     // One add button for every category: the category is chosen first in the popup
