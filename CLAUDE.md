@@ -38,7 +38,7 @@ Prefer a server over opening the file directly: sign-up confirmation emails redi
 
 **Pages.** `#appView` holds three `<section>` pages (`#page-log`, `#page-setup`, `#page-account`) and a fixed bottom `.tabbar`. The tabs are plain `#log` / `#setup` / `#account` links, and `showPage()` runs on `hashchange` (unknown hashes fall back to the log). The Account page holds the email, `#syncStatus` and logout. A sync error puts a red dot on the Account tab.
 
-**UI.** `render()` filters, sorts and redraws the whole card list (grid or list view, saved in localStorage as `pourover-log-view`) from `brews`. One `<dialog id="dlg">` handles new, edit and copy through `openForm(brew, mode)`. On phones, a floating `+` menu (`#fab`) duplicates the header's New/Import actions.
+**UI.** `render()` filters, sorts and redraws all the cards from `brews`, grouped into one section per brew date (`cardHtml()` draws a single card). One `<dialog id="dlg">` handles new, edit and copy through `openForm(brew, mode)`. On phones, a floating `+` menu (`#fab`) duplicates the header's New/Import actions.
 
 ## Conventions
 
