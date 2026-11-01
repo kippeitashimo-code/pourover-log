@@ -106,3 +106,42 @@ create policy "Users can delete their own equipment"
   on public.equipment for delete
   to authenticated
   using ((select auth.uid()) = user_id);
+
+-- My Beans: one row per coffee bean you've bought. Like brews and equipment, the
+-- details live in `data` (JSON), and each signed-in user can only see and change their own beans.
+create table if not exists public.beans (
+  id          uuid primary key,
+  user_id     uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  data        jsonb not null,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+create index if not exists beans_user_id_idx on public.beans (user_id);
+
+alter table public.beans enable row level security;
+
+drop policy if exists "Users can read their own beans" on public.beans;
+create policy "Users can read their own beans"
+  on public.beans for select
+  to authenticated
+  using ((select auth.uid()) = user_id);
+
+drop policy if exists "Users can add their own beans" on public.beans;
+create policy "Users can add their own beans"
+  on public.beans for insert
+  to authenticated
+  with check ((select auth.uid()) = user_id);
+
+drop policy if exists "Users can update their own beans" on public.beans;
+create policy "Users can update their own beans"
+  on public.beans for update
+  to authenticated
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
+
+drop policy if exists "Users can delete their own beans" on public.beans;
+create policy "Users can delete their own beans"
+  on public.beans for delete
+  to authenticated
+  using ((select auth.uid()) = user_id);

@@ -210,6 +210,16 @@
     .gear-result:hover, .gear-result:focus-visible { background: var(--fill); }
     .hint { margin: 6px 0 0; color: var(--muted); font-size: .8rem; }
 
+    /* My Beans page and the bean popups */
+    .beans-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    #beanItems { max-width: 640px; margin-top: 12px; padding: 6px; }
+    #beanDlg, #beanPickDlg { width: min(480px, calc(100% - 32px)); }
+    .bean-pick-list { margin-top: 10px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+    .bean-pick-list .gear-result { flex-direction: column; align-items: flex-start; gap: 2px; }
+    .bean-pick-list .gear-result.current { background: var(--fill); }
+    .bean-pick-list .gear-result.current .gear-name::after { content: ' ✓'; color: var(--accent); }
+    .bean-pick-btn { margin-bottom: 12px; }
+
     /* "Others" tick boxes in the brew form */
     .checks { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
     .check { display: flex; align-items: center; gap: 6px; margin: 0; font-size: .95rem; color: var(--text); }
@@ -445,13 +455,23 @@
     </div>
   </section>
 
-  <!-- Page 2: Coffee Setup. Your equipment, one box per category; filled in by renderSetup() -->
+  <!-- Page 2: My Beans. The beans you've bought; filled in by renderBeans() -->
+  <section class="wrap" id="page-beans" hidden>
+    <header><h1>My Beans</h1></header>
+    <div class="beans-actions">
+      <button type="button" class="primary" id="addBeanBtn">+ Add bean</button>
+      <button type="button" id="importBeansBtn">Add from past brews</button>
+    </div>
+    <div class="panel" id="beanItems"></div>
+  </section>
+
+  <!-- Page 3: Coffee Setup. Your equipment, one box per category; filled in by renderSetup() -->
   <section class="wrap" id="page-setup" hidden>
     <header><h1>Coffee Setup</h1></header>
     <div class="gear-groups" id="gearGroups"></div>
   </section>
 
-  <!-- Page 3: Account. To add a feature, add another .panel-section, or a .panel-item button to the actions list -->
+  <!-- Page 4: Account. To add a feature, add another .panel-section, or a .panel-item button to the actions list -->
   <section class="wrap" id="page-account" hidden>
     <header><h1>Account</h1></header>
     <div class="panel">
@@ -472,6 +492,10 @@
       <a class="tab" id="tab-log" href="#log">
         <span class="tab-icon"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></span>
         Brew Log
+      </a>
+      <a class="tab" id="tab-beans" href="#beans">
+        <span class="tab-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="6" ry="9" transform="rotate(40 12 12)"/><path d="M7.4 17.6c2.6-1.4 2.4-4 4.6-5.6s2-4.2 4.6-5.6"/></svg></span>
+        My Beans
       </a>
       <a class="tab" id="tab-setup" href="#setup">
         <span class="tab-icon"><svg viewBox="0 0 24 24"><path d="M4 6h16l-5 8H9z"/><path d="M10 14v2h4v-2M6 20h12"/></svg></span>
@@ -504,8 +528,11 @@
 
         <fieldset>
           <legend><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="12" rx="6" ry="9" transform="rotate(40 12 12)"/><path d="M7.4 17.6c2.6-1.4 2.4-4 4.6-5.6s2-4.2 4.6-5.6"/></svg>Coffee</legend>
+          <!-- Opens #beanPickDlg; the picked bean's id goes in the hidden beanId field -->
+          <button type="button" class="small bean-pick-btn" id="beanPickBtn">Choose from My Beans</button>
+          <input type="hidden" name="beanId">
           <div class="row">
-            <div><label>Bean / name</label><input name="bean" required placeholder="e.g. Kochere"></div>
+            <div><label>Bean / name</label><input name="bean" required placeholder="e.g. Kochere" list="beanList" autocomplete="off"></div>
             <div><label>Roaster</label><input name="roaster"></div>
             <div><label>Variety</label><input name="variety" list="varietyList" placeholder="Gesha, SL28…" autocomplete="off"></div>
           </div>
@@ -521,6 +548,7 @@
           </datalist>
           <datalist id="countryList"></datalist>
           <datalist id="varietyList"></datalist>
+          <datalist id="beanList"></datalist>
         </fieldset>
 
         <fieldset>
@@ -642,6 +670,56 @@
     </form>
   </dialog>
 
+  <!-- The add/edit bean form (My Beans), shown as a popup -->
+  <dialog id="beanDlg">
+    <form id="beanForm" method="dialog">
+      <div class="dlg-head">
+        <h2 id="beanTitle">Add bean</h2>
+        <button type="button" class="small" id="beanCloseBtn">✕</button>
+      </div>
+
+      <div class="dlg-body">
+        <div class="row">
+          <div><label>Bean / name</label><input name="name" required placeholder="e.g. Kochere" autocomplete="off"></div>
+          <div><label>Roaster</label><input name="roaster"></div>
+        </div>
+        <div class="row">
+          <div><label>Origin</label><input name="origin" list="countryList" placeholder="Start typing a country…" autocomplete="off"></div>
+          <div><label>Variety</label><input name="variety" list="varietyList" placeholder="Gesha, SL28…" autocomplete="off"></div>
+        </div>
+        <div class="row">
+          <div><label>Process</label><input name="process" list="processList" placeholder="Washed, Natural…"></div>
+          <div><label>Roast date</label><div class="inline date-field"><input name="roastDate" class="date-input" inputmode="numeric" placeholder="yyyy/mm/dd"></div></div>
+        </div>
+        <div class="calendar" id="beanCal" hidden></div>
+        <div><label>Notes</label><textarea name="notes" placeholder="Where you bought it, price, farm…"></textarea></div>
+      </div>
+
+      <div class="dlg-foot">
+        <div class="toolbar">
+          <button type="button" class="danger" id="beanDeleteBtn">Delete</button>
+        </div>
+        <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Picking a bean from My Beans in the brew form, shown as a popup on top of it -->
+  <dialog id="beanPickDlg">
+    <div class="dlg-head">
+      <h2>Choose a bean</h2>
+      <button type="button" class="small" id="beanPickCloseBtn">✕</button>
+    </div>
+    <div class="dlg-body">
+      <input id="beanPickQ" placeholder="Search your beans" autocomplete="off">
+      <div class="bean-pick-list" id="beanPickList"></div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" id="beanPickNone">Don't link a bean</button>
+      <button type="button" class="primary" id="beanPickNew">+ Add a new bean</button>
+    </div>
+  </dialog>
+
   <!-- ============================================================
        BEHAVIOR (JavaScript): what happens when you click things
        ============================================================ -->
@@ -663,10 +741,12 @@
     let user = null;
     let brews = [];
     let gear = []; // your equipment from Coffee Setup
+    let beans = []; // your beans from My Beans
 
     // A copy of your brews and equipment is also kept in this browser, so the app opens instantly
     const cacheKey = () => `pourover-log-cache-${user.id}`;
     const gearCacheKey = () => `pourover-log-gear-${user.id}`;
+    const beanCacheKey = () => `pourover-log-beans-${user.id}`;
     function loadCache(key) {
       try { return JSON.parse(localStorage.getItem(key)) || []; }
       catch { return []; }
@@ -677,6 +757,9 @@
     function cacheGear() {
       try { localStorage.setItem(gearCacheKey(), JSON.stringify(gear)); } catch {}
     }
+    function cacheBeans() {
+      try { localStorage.setItem(beanCacheKey(), JSON.stringify(beans)); } catch {}
+    }
 
     function setStatus(text, isError = false) {
       $('syncStatus').textContent = text;
@@ -685,13 +768,14 @@
       $('tab-account').classList.toggle('has-badge', isError);
     }
 
-    // ---------- Reading & writing brews and equipment online ----------
-    // Both tables keep each item's details in a `data` column, next to its id
+    // ---------- Reading & writing brews, equipment and beans online ----------
+    // All tables keep each item's details in a `data` column, next to its id
     async function fetchAll() {
       setStatus('Syncing…');
-      const [b, g] = await Promise.all([
+      const [b, g, bn] = await Promise.all([
         db.from('brews').select('id, data'),
         db.from('equipment').select('id, data'),
+        db.from('beans').select('id, data'),
       ]);
       if (b.error) return setStatus('Offline: showing the last synced copy', true);
       brews = b.data.map(row => ({ ...row.data, id: row.id }));
@@ -701,8 +785,14 @@
         moveKettlesToOthers();
         cacheGear();
       }
+      if (!bn.error) {
+        beans = bn.data.map(row => ({ ...row.data, id: row.id }));
+        cacheBeans();
+      }
       render();
-      setStatus(g.error ? 'Coffee Setup not synced: check your connection' : 'Synced', !!g.error);
+      if (g.error) setStatus('Coffee Setup not synced: check your connection', true);
+      else if (bn.error) setStatus('My Beans not synced: check your connection', true);
+      else setStatus('Synced');
     }
 
     async function uploadRows(table, list) {
@@ -733,10 +823,12 @@
 
     function uploadBrews(list) { return uploadRows('brews', list); }
     function uploadGear(list) { return uploadRows('equipment', list); }
+    function uploadBeans(list) { return uploadRows('beans', list); }
 
-    async function deleteGearOnline(id) {
+    // Deletes one equipment item or bean
+    async function deleteRowOnline(table, id) {
       setStatus('Saving…');
-      const { error } = await db.from('equipment').delete().eq('id', id);
+      const { error } = await db.from(table).delete().eq('id', id);
       setStatus(error ? 'Delete failed: check your connection' : 'Synced', !!error);
     }
 
@@ -848,6 +940,7 @@
       showPage();
       brews = loadCache(cacheKey());
       gear = loadCache(gearCacheKey());
+      beans = loadCache(beanCacheKey());
       render();
       await offerLocalUpload();
       await fetchAll();
@@ -858,6 +951,7 @@
       $('authView').hidden = false;
       brews = [];
       gear = [];
+      beans = [];
       photoUrls.clear();
       // Start the next sign-in on the Brew Log page
       if (location.hash) history.replaceState(null, '', location.pathname + location.search);
@@ -903,6 +997,7 @@
       try {
         localStorage.removeItem(cacheKey());
         localStorage.removeItem(gearCacheKey());
+        localStorage.removeItem(beanCacheKey());
       } catch {}
       await db.auth.signOut();
     };
@@ -1076,6 +1171,7 @@
       refreshDropdowns();
       loadPhotoUrls();
       renderSetup(); // it shows how many brews use each item
+      renderBeans(); // same for each bean
     }
 
     // ---------- Month calendar (date filter and the form's date fields) ----------
@@ -1158,10 +1254,24 @@
       render();
     };
 
-    // Fill the variety autocomplete with values you've used before
+    // Fill the variety and bean autocompletes with values you've used before
     function refreshDropdowns() {
       const unique = (key) => [...new Set(brews.map(b => b[key]).filter(Boolean))].sort();
       $('varietyList').innerHTML = [...new Set([...unique('variety'), ...VARIETIES])].map(v => `<option>${escapeHtml(v)}</option>`).join('');
+      // Beans: most recently brewed first, with the roaster and origin as a hint
+      const beans = new Map();
+      [...brews].sort((a, b) => (b.brewDate || '').localeCompare(a.brewDate || ''))
+        .forEach(b => { if (b.bean && !beans.has(b.bean.trim().toLowerCase())) beans.set(b.bean.trim().toLowerCase(), b); });
+      $('beanList').innerHTML = [...beans.values()].map(b =>
+        `<option value="${escapeHtml(b.bean.trim())}">${escapeHtml([b.roaster, b.origin].filter(Boolean).join(' · '))}</option>`).join('');
+    }
+
+    // The latest brew of a bean, matched by name (ignoring case and extra spaces)
+    function latestBrewOf(bean) {
+      const name = bean.trim().toLowerCase();
+      if (!name) return null;
+      return brews.filter(b => (b.bean || '').trim().toLowerCase() === name)
+        .sort((a, b) => (b.brewDate || '').localeCompare(a.brewDate || ''))[0] || null;
     }
 
     // ---------- The add/edit form ----------
@@ -1279,6 +1389,21 @@
       }
     });
 
+    // Picking a bean you've brewed before fills in its details (roaster, origin…)
+    // from My Beans, or else from your latest brew of it. Only empty fields are filled, so nothing you typed is lost.
+    const BEAN_DETAILS = ['roaster', 'origin', 'variety', 'process', 'roastDate'];
+    form.bean.addEventListener('input', () => {
+      // Typing a name yourself unlinks the bean picked from My Beans (Save links it again if the name matches)
+      if (form.beanId.value) { form.beanId.value = ''; drawBeanPickBtn(); }
+      const past = beanNamed(form.bean.value) || latestBrewOf(form.bean.value);
+      if (!past) return;
+      BEAN_DETAILS.forEach(key => {
+        if (form[key].value || !past[key]) return;
+        form[key].value = key === 'roastDate' ? toDisplayDate(past[key]) : past[key];
+      });
+      checkDate(form.roastDate);
+    });
+
     // Add a calendar button next to each date field. Both fields share one calendar,
     // shown under the date row; it fills in whichever field's button was pressed.
     let calField = null; // the date field the calendar is filling in
@@ -1286,7 +1411,7 @@
       input: () => calField, onlyBrewDays: false, clearLabel: 'Clear',
       onPick: () => checkDate(calField),
     });
-    document.querySelectorAll('.date-field').forEach(field => {
+    form.querySelectorAll('.date-field').forEach(field => {
       const text = field.querySelector('.date-input');
       const cal = document.createElement('span');
       cal.className = 'cal';
@@ -1380,6 +1505,8 @@
       }
       // Equipment dropdowns and tick boxes, filled from your Coffee Setup
       formOrig = data;
+      form.beanId.value = data.beanId || ''; // reset() leaves hidden fields alone
+      drawBeanPickBtn();
       GEAR_SELECTS.forEach(category => fillGearSelect(category, startingGear(data, category)));
       fillOthers((data.others || []).map(o => o.id));
       if (mode === 'copy') form.brewDate.value = today();
@@ -1404,6 +1531,8 @@
       }).filter(p => p.t || p.g || p.note);
       ['overall', ...TASTES.map(([key]) => key)].forEach(key => f[key] = scores[key] || 0);
       f.photo = formPhoto.path;
+      // A typed bean name that matches one in My Beans gets linked to it
+      if (!f.beanId) f.beanId = beanNamed(f.bean)?.id || '';
       // Equipment: each brew keeps the gear's id and a copy of its name, so the brew still
       // reads correctly if the gear is later renamed or removed from your setup
       GEAR_SELECTS.forEach(category => {
@@ -1709,7 +1838,7 @@
       cacheGear();
       render();
       if (used) uploadGear([item]);
-      else deleteGearOnline(item.id);
+      else deleteRowOnline('equipment', item.id);
     };
     function finishGearForm(item) {
       const done = gearDone;
@@ -1789,6 +1918,251 @@
       openGearForm(null, 'other', item => { if (item) fillOthers([...checked, item.id]); });
     };
 
+    // ---------- My Beans ----------
+    // Each bean looks like { id, name, roaster, origin, variety, process, roastDate, notes, archived }.
+    // A brew keeps the bean's id (`beanId`) plus its own copy of the details, like it does for gear.
+    // Beans that past brews use are never erased: deleting one marks it `archived`.
+    const BEAN_FIELDS = ['name', ...BEAN_DETAILS]; // copied onto a brew (`name` becomes the brew's `bean`)
+    const nameKey = (s) => (s || '').trim().toLowerCase();
+    const activeBeans = () => beans.filter(b => !b.archived)
+      .sort((a, b) => (b.roastDate || '').localeCompare(a.roastDate || '') || (a.name || '').localeCompare(b.name || ''));
+    const brewsWithBean = (bean) => brews.filter(b => b.beanId === bean.id);
+    // The bean in My Beans with this name (ignoring case and extra spaces), if any
+    const beanNamed = (name) => nameKey(name) ? activeBeans().find(b => nameKey(b.name) === nameKey(name)) : null;
+
+    // Whole days from a "YYYY-MM-DD" date to today
+    function daysSince(date) {
+      if (!date) return null;
+      return Math.round((new Date(today() + 'T00:00:00') - new Date(date + 'T00:00:00')) / 86400000);
+    }
+    // "Roaster · Origin · 12 days since roast"
+    function beanSub(bean) {
+      const days = daysSince(bean.roastDate);
+      const age = days === null ? '' : days < 0 ? 'Not roasted yet' : `${days} day${days === 1 ? '' : 's'} since roast`;
+      return [bean.roaster, bean.origin, age].filter(Boolean).join(' · ');
+    }
+
+    // Brews with a bean name that isn't linked to My Beans yet, grouped by name
+    function unlinkedBeanNames() {
+      const names = new Map();
+      brews.forEach(b => {
+        if (b.beanId || !nameKey(b.bean)) return;
+        const key = nameKey(b.bean);
+        if (!names.has(key)) names.set(key, []);
+        names.get(key).push(b);
+      });
+      return names;
+    }
+
+    // The My Beans page: newest roast first
+    function renderBeans() {
+      const items = activeBeans();
+      $('beanItems').innerHTML = items.length ? items.map(bean => {
+        const used = brewsWithBean(bean).length;
+        const sub = [beanSub(bean), used ? `Used in ${used} brew${used > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ');
+        return `
+          <button type="button" class="panel-item" data-bean-id="${escapeHtml(bean.id)}">
+            <span class="gear-name">${escapeHtml(bean.name)}</span>
+            ${sub ? `<span class="gear-sub">${escapeHtml(sub)}</span>` : ''}
+          </button>`;
+      }).join('') : '<div class="gear-empty">No beans yet</div>';
+      $('importBeansBtn').hidden = !unlinkedBeanNames().size;
+    }
+    $('beanItems').onclick = (e) => {
+      const row = e.target.closest('[data-bean-id]');
+      if (row) openBeanForm(beans.find(b => b.id === row.dataset.beanId));
+    };
+    $('addBeanBtn').onclick = () => openBeanForm(null);
+
+    // "Add from past brews": one bean per name used in your brews, with the details
+    // from your latest brew of it. Names already in My Beans are just linked.
+    $('importBeansBtn').onclick = () => {
+      const plan = [...unlinkedBeanNames()].map(([key, list]) => {
+        let bean = beanNamed(key), isNew = false;
+        if (!bean) {
+          const past = latestBrewOf(key);
+          bean = { id: crypto.randomUUID(), name: past.bean.trim(), notes: '', archived: false };
+          BEAN_DETAILS.forEach(k => bean[k] = past[k] || '');
+          isNew = true;
+        }
+        return { bean, isNew, list };
+      });
+      const added = plan.filter(p => p.isNew).map(p => p.bean);
+      const linked = plan.flatMap(p => p.list);
+      if (!linked.length) return;
+      if (!confirm(`Add ${added.length} bean(s) to My Beans and link ${linked.length} past brew(s) to them?`)) return;
+      plan.forEach(p => p.list.forEach(b => b.beanId = p.bean.id));
+      beans.push(...added);
+      cacheBeans();
+      cacheBrews();
+      render();
+      if (added.length) uploadBeans(added);
+      uploadBrews(linked);
+    };
+
+    // ----- The add/edit bean popup -----
+    const beanForm = $('beanForm');
+    const beanField = (name) => beanForm.elements.namedItem(name);
+    let editingBeanId = null;
+    let beanDone = null; // when opened from the brew form: told about the new bean (or null if none)
+
+    // The roast date gets its own calendar, like the brew form's date fields
+    const beanCal = makeCalendar($('beanCal'), {
+      input: () => beanField('roastDate'), onlyBrewDays: false, clearLabel: 'Clear',
+      onPick: () => checkDate(beanField('roastDate')),
+    });
+    beanForm.querySelectorAll('.date-field').forEach(field => {
+      const cal = document.createElement('span');
+      cal.className = 'cal';
+      cal.innerHTML = `<button type="button" title="Pick from calendar" aria-label="Pick from calendar" aria-controls="beanCal">${CAL_ICON}</button>`;
+      cal.querySelector('button').onclick = () => $('beanCal').hidden ? beanCal.open() : beanCal.close();
+      field.appendChild(cal);
+    });
+    beanForm.addEventListener('input', (e) => {
+      if (!e.target.classList.contains('date-input')) return;
+      e.target.value = formatDate(e.target.value);
+      checkDate(e.target);
+    });
+
+    // `onDone` is for adding a bean from the brew form: onDone(newBean) is called once,
+    // on Save (or with null if the popup is closed without saving)
+    function openBeanForm(item, onDone = null) {
+      beanForm.reset();
+      beanDone = onDone;
+      editingBeanId = item ? item.id : null;
+      $('beanTitle').textContent = item ? 'Edit bean' : 'Add bean';
+      $('beanDeleteBtn').hidden = !item;
+      const data = item || {};
+      for (const el of beanForm.elements) {
+        if (el.name && el.name in data) el.value = data[el.name] ?? '';
+      }
+      beanField('roastDate').value = toDisplayDate(beanField('roastDate').value);
+      checkDate(beanField('roastDate'));
+      beanCal.close();
+      $('beanDlg').showModal();
+    }
+
+    // After changing a bean, offer to change the copy saved on past brews too
+    function updateBeanInBrews(before, item) {
+      if (BEAN_FIELDS.every(k => (before[k] || '') === (item[k] || ''))) return;
+      const used = brewsWithBean(item);
+      if (!used.length || !confirm(`Also update the bean details on ${used.length} past brew(s)?`)) return;
+      used.forEach(b => {
+        b.bean = item.name;
+        BEAN_DETAILS.forEach(k => b[k] = item[k] || '');
+      });
+      cacheBrews();
+      uploadBrews(used);
+    }
+
+    beanForm.onsubmit = () => {
+      const f = Object.fromEntries(new FormData(beanForm));
+      for (const k in f) f[k] = f[k].trim();
+      f.roastDate = toSavedDate(f.roastDate);
+      let item;
+      if (editingBeanId) {
+        const i = beans.findIndex(b => b.id === editingBeanId);
+        if (i < 0) return;
+        const before = beans[i];
+        item = beans[i] = { ...before, ...f };
+        updateBeanInBrews(before, item);
+      } else {
+        item = { id: crypto.randomUUID(), ...f, archived: false };
+        beans.push(item);
+      }
+      cacheBeans();
+      render();
+      uploadBeans([item]);
+      finishBeanForm(editingBeanId ? null : item);
+    };
+
+    $('beanDeleteBtn').onclick = () => {
+      const item = beans.find(b => b.id === editingBeanId);
+      if (!item) return;
+      const used = brewsWithBean(item).length;
+      const question = used
+        ? `Remove "${item.name}" from My Beans? The ${used} brew(s) that used it will still show it.`
+        : `Delete "${item.name}"?`;
+      if (!confirm(question)) return;
+      $('beanDlg').close();
+      if (used) item.archived = true; // hidden, but kept so old brews stay linked
+      else beans = beans.filter(b => b !== item);
+      cacheBeans();
+      render();
+      if (used) uploadBeans([item]);
+      else deleteRowOnline('beans', item.id);
+    };
+    function finishBeanForm(item) {
+      const done = beanDone;
+      beanDone = null;
+      if (done) done(item);
+    }
+    $('beanCloseBtn').onclick = () => { finishBeanForm(null); $('beanDlg').close(); };
+    $('beanDlg').addEventListener('close', () => finishBeanForm(null)); // e.g. closed with Esc
+
+    // ----- Choosing a bean in the brew form -----
+    // The button shows which bean is linked
+    function drawBeanPickBtn() {
+      const bean = beans.find(b => b.id === form.beanId.value);
+      $('beanPickBtn').textContent = bean
+        ? `My Beans: ${bean.name}${bean.archived ? ' (removed)' : ''} ▾`
+        : 'Choose from My Beans';
+    }
+
+    // Fills the Coffee fields from the bean (replacing what's there) and links it
+    function pickBean(bean) {
+      form.beanId.value = bean ? bean.id : '';
+      if (bean) {
+        form.bean.value = bean.name;
+        BEAN_DETAILS.forEach(k => form[k].value = k === 'roastDate' ? toDisplayDate(bean[k]) : bean[k] || '');
+        checkDate(form.roastDate);
+      }
+      drawBeanPickBtn();
+    }
+
+    // Your beans, narrowed by the search box (accents, spaces and symbols are ignored)
+    function drawBeanPicks() {
+      const words = $('beanPickQ').value.split(/\s+/).map(searchKey).filter(Boolean);
+      const matches = activeBeans().filter(b =>
+        words.every(w => searchKey(`${b.name} ${b.roaster} ${b.origin} ${b.variety} ${b.process}`).includes(w)));
+      $('beanPickList').innerHTML = matches.length
+        ? matches.map(b => {
+            const sub = beanSub(b);
+            return `
+              <button type="button" class="gear-result${b.id === form.beanId.value ? ' current' : ''}" data-bean-id="${escapeHtml(b.id)}">
+                <span class="gear-name">${escapeHtml(b.name)}</span>
+                ${sub ? `<span class="gear-sub">${escapeHtml(sub)}</span>` : ''}
+              </button>`;
+          }).join('')
+        : `<div class="gear-empty">${beans.some(b => !b.archived) ? 'No matches' : 'No beans yet. Add one below.'}</div>`;
+    }
+
+    $('beanPickBtn').onclick = () => {
+      $('beanPickQ').value = '';
+      drawBeanPicks();
+      $('beanPickDlg').showModal();
+    };
+    $('beanPickQ').oninput = drawBeanPicks;
+    // Enter picks the top bean
+    $('beanPickQ').onkeydown = (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      $('beanPickList').querySelector('[data-bean-id]')?.click();
+    };
+    $('beanPickList').onclick = (e) => {
+      const btn = e.target.closest('[data-bean-id]');
+      if (!btn) return;
+      pickBean(beans.find(b => b.id === btn.dataset.beanId));
+      $('beanPickDlg').close();
+    };
+    $('beanPickNone').onclick = () => { pickBean(null); $('beanPickDlg').close(); };
+    $('beanPickCloseBtn').onclick = () => $('beanPickDlg').close();
+    // "+ Add a new bean" opens the bean form on top; the new bean is then picked
+    $('beanPickNew').onclick = () => {
+      $('beanPickDlg').close();
+      openBeanForm(null, item => { if (item) pickBean(item); });
+    };
+
     // ---------- Floating + button (phones) ----------
     function setFabOpen(open) {
       $('fab').classList.toggle('open', open);
@@ -1811,9 +2185,9 @@
     $('filterBtn').onclick = () => setFiltersOpen(!$('filterPanel').classList.contains('open'));
 
     // ---------- Pages & bottom navigation bar ----------
-    // The page you're on is kept in the address (#log, #setup, #account), so the back
+    // The page you're on is kept in the address (#log, #beans, #setup, #account), so the back
     // button and reloading the page work as you'd expect. Anything else shows the Brew Log.
-    const PAGES = ['log', 'setup', 'account'];
+    const PAGES = ['log', 'beans', 'setup', 'account'];
     const scrollPositions = {};
     let currentPage = null;
 
