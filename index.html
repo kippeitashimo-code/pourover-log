@@ -554,15 +554,15 @@
         <fieldset>
           <legend><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2.5h6V4"/><path d="M9 10h6M9 14h6M9 18h3"/></svg>Recipe</legend>
           <div class="row">
-            <div><label>Dose (g)</label><input name="dose" type="number" step="0.1" min="0"></div>
-            <div><label>Water (g)</label><input name="water" type="number" step="1" min="0"></div>
+            <div><label>Dose (g)</label><input name="dose" type="number" inputmode="decimal" step="0.1" min="0"></div>
+            <div><label>Water (g)</label><input name="water" type="number" inputmode="numeric" step="1" min="0"></div>
             <div><label>Ratio</label><div class="ratio" id="ratioOut">—</div></div>
           </div>
           <div class="row">
             <div>
               <label>Water temp</label>
               <div class="inline">
-                <input name="temp" type="number" step="0.5">
+                <input name="temp" type="number" inputmode="decimal" step="0.5">
                 <select name="tempUnit" id="tempUnit">
                   <option value="C">°C</option>
                   <option value="F">°F</option>
@@ -1285,7 +1285,7 @@
       row.className = 'pour';
       row.innerHTML = `
         <input class="time-input" inputmode="numeric" placeholder="0:00" value="${escapeHtml(p.t)}">
-        <input type="number" placeholder="50" value="${escapeHtml(p.g)}">
+        <input type="number" inputmode="numeric" placeholder="50" value="${escapeHtml(p.g)}">
         <input placeholder="bloom, swirl…" value="${escapeHtml(p.note)}">
         <button type="button" title="Remove">✕</button>`;
       row.querySelector('button').onclick = () => row.remove();
