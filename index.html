@@ -9,95 +9,257 @@
        STYLES (CSS): how the page looks
        ============================================================ -->
   <style>
+    /* Clean, mostly-white look in the style of Apple's apps: light grey page, white cards, blue accent */
     :root {
-      --bg: #f7f3ee;
+      --bg: #f5f5f7;
       --card: #ffffff;
-      --text: #2b2420;
-      --muted: #8a7f76;
-      --line: #e6ded5;
-      --accent: #8b5a3c;
-      --accent-soft: #f1e6dc;
-      --danger: #b23b3b;
+      --fill: #f2f2f7;        /* background of inputs and plain buttons */
+      --fill-hover: #e8e8ed;
+      --text: #1d1d1f;
+      --muted: #6e6e73;
+      --line: #e5e5ea;
+      --accent: #0071e3;
+      --accent-soft: #e8f1fc;
+      --danger: #e0352b;
+      --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.06);
+      --shadow-hover: 0 2px 4px rgba(0,0,0,.05), 0 10px 28px rgba(0,0,0,.10);
+      --bar-bg: rgba(255,255,255,.78); /* see-through bottom bar */
+      --tabbar-h: 60px; /* height of the bottom navigation bar (plus the phone's safe area) */
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #1c1917;
-        --card: #262220;
-        --text: #f1ebe5;
-        --muted: #a39890;
-        --line: #3a3430;
-        --accent: #d49a6a;
-        --accent-soft: #3a2e26;
+        --bg: #000000;
+        --card: #1c1c1e;
+        --fill: #2c2c2e;
+        --fill-hover: #3a3a3c;
+        --text: #f5f5f7;
+        --muted: #98989d;
+        --line: #38383a;
+        --accent: #0a84ff;
+        --accent-soft: rgba(10,132,255,.18);
+        --danger: #ff453a;
+        --shadow: none;
+        --shadow-hover: 0 0 0 1px var(--line);
+        --bar-bg: rgba(28,28,30,.78);
       }
     }
 
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", sans-serif;
       background: var(--bg);
       color: var(--text);
       line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
     }
     .wrap {
       max-width: 960px; margin: 0 auto;
-      padding: 24px max(16px, env(safe-area-inset-right)) 64px max(16px, env(safe-area-inset-left));
+      padding: 24px max(16px, env(safe-area-inset-right)) calc(var(--tabbar-h) + 48px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
     }
 
     header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-    h1 { margin: 0; font-size: 1.6rem; }
+    h1 { margin: 0; font-size: 1.9rem; font-weight: 700; letter-spacing: -.02em; }
     h1 span { color: var(--accent); }
+    h2, h3 { letter-spacing: -.01em; }
 
+    /* Rounded "pill" buttons with no outline, like iOS */
     button {
-      font: inherit; cursor: pointer; border-radius: 8px;
-      border: 1px solid var(--line); background: var(--card); color: var(--text);
-      padding: 8px 14px;
+      font: inherit; font-weight: 500; cursor: pointer; border-radius: 980px;
+      border: 1px solid transparent; background: var(--fill); color: var(--text);
+      padding: 8px 16px; transition: background-color .15s, opacity .15s;
     }
-    button:hover { border-color: var(--accent); }
-    button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    button:hover { background: var(--fill-hover); }
+    button:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 1px; }
+    button.primary { background: var(--accent); color: #fff; }
+    button.primary:hover { opacity: .88; }
     button.danger { color: var(--danger); }
-    button.small { padding: 4px 10px; font-size: .85rem; }
+    button.small { padding: 4px 12px; font-size: .85rem; }
 
     input, select, textarea {
-      font: inherit; width: 100%; padding: 8px 10px; border-radius: 8px;
-      border: 1px solid var(--line); background: var(--bg); color: var(--text);
+      font: inherit; width: 100%; padding: 9px 12px; border-radius: 10px;
+      border: 1px solid transparent; background: var(--fill); color: var(--text);
+      transition: border-color .15s, box-shadow .15s;
     }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
     textarea { resize: vertical; min-height: 60px; }
     label { display: block; font-size: .8rem; color: var(--muted); margin-bottom: 4px; }
 
-    /* Search & filter bar */
-    .filters { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 10px; margin: 20px 0; }
+    /* Search & filter bar: folded away behind the filter button, slides open below the header */
+    .filter-panel {
+      display: grid; grid-template-rows: 0fr; opacity: 0;
+      transition: grid-template-rows .3s cubic-bezier(.4, 0, .2, 1), opacity .2s ease;
+    }
+    .filter-panel.open { grid-template-rows: 1fr; opacity: 1; }
+    /* Extra 3px around the inside so focus outlines aren't cut off */
+    .filter-inner { min-height: 0; overflow: hidden; padding: 3px; margin: -3px; }
+    .filters {
+      display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; padding-top: 20px;
+      transform: translateY(-8px); transition: transform .3s cubic-bezier(.2, .8, .2, 1);
+    }
+    .filter-panel.open .filters { transform: none; }
     @media (max-width: 640px) { .filters { grid-template-columns: 1fr 1fr; } .filters .search { grid-column: 1 / -1; } }
+    /* Month calendar for the date filter: days with brews are tinted, other days stay plain */
+    .calendar { margin-top: 10px; margin-left: auto; width: min(320px, 100%); background: var(--card); border-radius: 16px; box-shadow: var(--shadow); padding: 12px; }
+    .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-weight: 600; font-size: .95rem; }
+    .cal-head button { padding: 4px 12px; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+    .cal-grid .wd { font-size: .7rem; color: var(--muted); padding: 4px 0; }
+    .cal-grid .d { aspect-ratio: 1; padding: 0; border-radius: 50%; background: none; color: var(--muted); font-size: .85rem; font-weight: 400; }
+    .cal-grid .d:disabled { cursor: default; opacity: .6; }
+    .cal-grid .d.has { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+    .cal-grid .d.has:hover { filter: brightness(.95); }
+    .cal-grid .d.picked { background: var(--accent); color: #fff; }
+    .cal-foot { display: flex; justify-content: flex-end; margin-top: 6px; }
+    .cal-foot button { padding: 4px 12px; font-size: .85rem; }
+    #list { margin-top: 20px; }
 
     /* Recipe cards */
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
     .card {
-      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
-      padding: 16px; cursor: pointer; transition: border-color .15s;
+      background: var(--card); border-radius: 18px; box-shadow: var(--shadow);
+      padding: 18px; cursor: pointer; transition: box-shadow .2s, transform .2s;
+      position: relative; overflow: hidden;
     }
-    .card:hover { border-color: var(--accent); }
+    .card:hover { box-shadow: var(--shadow-hover); transform: translateY(-1px); }
     .card h3 { margin: 0 0 2px; font-size: 1.05rem; }
     .card .sub { color: var(--muted); font-size: .85rem; }
-    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 6px; }
-    .chip { background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 10px; font-size: .8rem; }
-    .stars { color: var(--accent); letter-spacing: 2px; }
+    .card h3 { overflow-wrap: anywhere; }
+    /* Overall score as a bar along the card's top edge: left end 0, right end 10 */
+    /* (its colour goes from red at 0 to green at 10; thin gaps split it into 10 steps) */
+    .score-bar { position: absolute; top: 0; left: 0; right: 0; height: 8px; background: var(--line); }
+    .score-bar span { display: block; height: 100%; }
+    .score-bar::after {
+      content: ''; position: absolute; inset: 0;
+      background: repeating-linear-gradient(to right, transparent 0 calc(10% - 2px), var(--card) calc(10% - 2px) 10%);
+    }
+    /* One section per brew date: the date, then that day's cards */
+    .day + .day { margin-top: 28px; }
+    .day-head { margin: 0 0 10px 4px; font-size: .95rem; font-weight: 600; }
+    .day-head span { color: var(--muted); font-weight: 400; margin-left: 4px; }
+    /* Brewer, ratio, temperature and time: one per line, each with a small icon */
+    .facts { list-style: none; margin: 10px 0 8px; padding: 0; display: grid; gap: 4px; font-size: .85rem; }
+    .facts li { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .facts li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .facts svg { flex: none; width: 16px; height: 16px; stroke: var(--muted); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .empty { text-align: center; color: var(--muted); padding: 60px 0; }
+    /* A card with a photo or taste chart: details on the left, those stacked on the right edge */
+    .card.has-side { display: flex; gap: 12px; }
+    .card-main { flex: 1; min-width: 0; }
+    .card-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+    .card-side .radar { width: 150px; margin-top: auto; } /* sits at the bottom of the card */
+    .card-side .radar text { font-size: 20px; } /* the small chart is drawn shrunk, so its letters start bigger */
 
-    /* Grid / List switch: a single icon button showing the *other* view */
-    .icon-btn { display: flex; align-items: center; justify-content: center; padding: 8px 10px; }
+    /* Pentagon chart of the five tasting scores */
+    .radar { display: block; overflow: visible; }
+    .radar .ring, .radar .spoke { fill: none; stroke: var(--line); stroke-width: 1; }
+    .radar .shape { fill: var(--accent); fill-opacity: .2; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+    .radar .pt { fill: var(--accent); }
+    .radar text { fill: var(--muted); font-size: 11px; }
+    .radar text tspan { fill: var(--accent); font-weight: 600; }
+    .radar-wrap { display: flex; justify-content: center; margin: 0 0 16px; }
+    .radar-wrap .radar { width: min(300px, 100%); }
+    .card-photo { flex: none; width: 96px; height: 96px; border-radius: 12px; overflow: hidden; background: var(--accent-soft); }
+    .card-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+    /* Round icon buttons in the header (filter, export…) */
+    .icon-btn { position: relative; display: flex; align-items: center; justify-content: center; padding: 9px; }
     .icon-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
+    /* An icon button whose panel or menu is open */
+    .icon-btn[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent); }
+    /* Small dot on an icon button: filters are in use */
+    .icon-btn.has-badge::after {
+      content: ''; position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--accent); box-shadow: 0 0 0 2px var(--card);
+    }
+
+    /* Account page: a card split into sections; new account features can be added as more sections */
+    .panel { max-width: 480px; margin-top: 20px; background: var(--card); border-radius: 16px; box-shadow: var(--shadow); }
+    .panel-section { padding: 14px 16px; }
+    .panel-section + .panel-section { border-top: 1px solid var(--line); }
+    .panel-section.actions { padding: 6px; }
+    .panel-label { font-size: .75rem; color: var(--muted); }
+    .panel-email { font-weight: 600; overflow-wrap: anywhere; }
+    .panel-status { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: .85rem; color: var(--muted); }
+    .panel-status::before { content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .panel-status:has(.err) { color: var(--danger); }
+    .panel-item {
+      display: block; width: 100%; text-align: left; border: none; background: none; border-radius: 10px; padding: 10px; font-weight: 400;
+    }
+    .panel-item:hover, .panel-item:focus-visible { background: var(--fill); }
+
+    /* Coffee Setup page: one box per category (Brewer, Grinder…), side by side on wide screens */
+    .gear-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-top: 20px; }
+    .gear-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .gear-head h2 { margin: 0; font-size: 1.05rem; }
+    .gear-groups .panel { max-width: none; margin-top: 8px; padding: 6px; }
+    .gear-name { display: block; font-weight: 600; overflow-wrap: anywhere; }
+    .gear-sub { color: var(--muted); font-size: .8rem; }
+    .panel-item .gear-sub { display: block; }
+    .gear-empty { padding: 10px; color: var(--muted); font-size: .9rem; }
+
+    /* Equipment popup: product suggestions under the search box */
+    #gearDlg { width: min(480px, calc(100% - 32px)); }
+    .gear-search { margin-bottom: 16px; }
+    .gear-results { margin-top: 6px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+    .gear-result {
+      display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+      width: 100%; text-align: left; border: none; border-radius: 0; background: none; padding: 9px 12px; font-weight: 400;
+    }
+    .gear-result + .gear-result { border-top: 1px solid var(--line); }
+    .gear-result:hover, .gear-result:focus-visible { background: var(--fill); }
+    .hint { margin: 6px 0 0; color: var(--muted); font-size: .8rem; }
+
+    /* My Beans page and the bean popups */
+    .beans-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    #beanItems { max-width: 640px; margin-top: 12px; padding: 6px; }
+    #beanDlg, #beanPickDlg { width: min(480px, calc(100% - 32px)); }
+    .bean-pick-list { margin-top: 10px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+    .bean-pick-list .gear-result { flex-direction: column; align-items: flex-start; gap: 2px; }
+    .bean-pick-list .gear-result.current { background: var(--fill); }
+    .bean-pick-list .gear-result.current .gear-name::after { content: ' ✓'; color: var(--accent); }
+    .bean-pick-btn { margin-bottom: 12px; }
+
+    /* "Others" tick boxes in the brew form */
+    .checks { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+    .check { display: flex; align-items: center; gap: 6px; margin: 0; font-size: .95rem; color: var(--text); }
+    .check input { width: auto; }
+
+    /* Bottom navigation bar: always visible, sits above the phone's home-swipe area */
+    .tabbar {
+      position: fixed; z-index: 15; left: 0; right: 0; bottom: 0;
+      background: var(--bar-bg); border-top: 1px solid var(--line);
+      -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+      padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+    .tabbar-inner { display: flex; max-width: 480px; margin: 0 auto; }
+    .tab {
+      flex: 1; height: var(--tabbar-h); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+      color: var(--muted); text-decoration: none; font-size: .72rem; -webkit-tap-highlight-color: transparent;
+    }
+    .tab:hover { color: var(--text); }
+    .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; border-radius: 10px; }
+    .tab-icon { position: relative; display: flex; padding: 3px 18px; border-radius: 999px; transition: background-color .15s; }
+    .tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    /* The page you're on: shown in the accent colour, like an iOS tab bar */
+    .tab[aria-current="page"] { color: var(--accent); font-weight: 600; }
+    /* Red dot on the Account tab when syncing failed */
+    .tab.has-badge .tab-icon::after {
+      content: ''; position: absolute; top: 2px; right: 14px; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--danger); box-shadow: 0 0 0 2px var(--card);
+    }
 
     /* Floating "+" button (phones only) with a menu that slides up out of it */
     .fab {
       display: none; position: fixed; z-index: 10;
       right: calc(20px + env(safe-area-inset-right));
-      bottom: calc(20px + env(safe-area-inset-bottom));
+      bottom: calc(var(--tabbar-h) + 16px + env(safe-area-inset-bottom));
     }
     .fab-btn {
       position: relative; z-index: 1; width: 56px; height: 56px; padding: 0; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
       background: var(--accent); color: #fff; border: none;
-      box-shadow: 0 4px 14px rgba(0,0,0,.25);
+      box-shadow: 0 6px 20px rgba(0,113,227,.35);
       -webkit-tap-highlight-color: transparent;
       transition: transform .15s;
     }
@@ -109,7 +271,7 @@
     .fab.open .fab-btn svg { transform: rotate(45deg); }
     .fab-item {
       position: absolute; right: 0; bottom: 7px; white-space: nowrap;
-      border-radius: 999px; padding: 10px 18px; box-shadow: 0 4px 14px rgba(0,0,0,.2);
+      border-radius: 999px; padding: 10px 18px; background: var(--card); box-shadow: 0 4px 16px rgba(0,0,0,.14);
       /* Closed: tucked behind the + button, small and invisible */
       opacity: 0; visibility: hidden; pointer-events: none;
       transform: translateY(0) scale(.6); transform-origin: right center;
@@ -125,33 +287,26 @@
     @media (max-width: 640px) {
       .fab { display: block; }
       #newBtn, #importBtn { display: none; } /* the floating button covers these on phones */
-      .wrap { padding-bottom: calc(110px + env(safe-area-inset-bottom)); } /* last card stays clear of it */
+      #page-log { padding-bottom: calc(var(--tabbar-h) + 100px + env(safe-area-inset-bottom)); } /* last card stays clear of it */
     }
     @media (prefers-reduced-motion: reduce) {
-      .fab-item, .fab-btn svg { transition-duration: .01s !important; transition-delay: 0s !important; }
+      .fab-item, .fab-btn svg, .filter-panel, .filters { transition-duration: .01s !important; transition-delay: 0s !important; }
     }
-
-    /* List view (table) — scrolls sideways on its own on small screens */
-    .table-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
-    table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-    th { color: var(--muted); font-weight: 500; font-size: .8rem; }
-    tbody tr { cursor: pointer; }
-    tbody tr:hover { background: var(--accent-soft); }
-    tbody tr:last-child td { border-bottom: none; }
 
     /* Form popup (dialog) */
     dialog {
-      border: none; border-radius: 14px; padding: 0; width: min(720px, calc(100% - 32px));
-      background: var(--card); color: var(--text);
+      border: none; border-radius: 20px; padding: 0; width: min(720px, calc(100% - 32px));
+      background: var(--card); color: var(--text); box-shadow: 0 20px 60px rgba(0,0,0,.2);
     }
-    dialog::backdrop { background: rgba(0,0,0,.45); }
+    dialog::backdrop { background: rgba(0,0,0,.3); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
     .dlg-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--line); }
-    .dlg-head h2 { margin: 0; font-size: 1.2rem; }
+    .dlg-head h2 { margin: 0; font-size: 1.25rem; font-weight: 700; }
     .dlg-body { padding: 16px 20px; max-height: 70vh; overflow-y: auto; }
     .dlg-foot { display: flex; justify-content: space-between; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--line); }
     fieldset { border: none; padding: 0; margin: 0 0 20px; }
-    legend { font-weight: 600; margin-bottom: 10px; color: var(--accent); }
+    /* Section titles in the form: grey capitals with a small grey icon in front */
+    legend { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 1.17rem; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 12px; color: var(--muted); }
+    legend svg { flex: none; width: 1.15em; height: 1.15em; stroke: var(--muted); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 10px; }
     .ratio { font-size: .9rem; color: var(--muted); }
     .inline { display: flex; gap: 6px; }
@@ -159,17 +314,53 @@
     .cal { position: relative; flex: none; }
     .cal button { height: 100%; padding: 0 10px; display: flex; align-items: center; }
     .cal button svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; }
-    /* Invisible native date input, only used to show the calendar popup */
-    .cal input[type="date"] { position: absolute; inset: 0; opacity: 0; pointer-events: none; padding: 0; }
+    /* The form's calendar: any day can be picked, so days look like normal text */
+    .calendar.any-day .d { color: var(--text); }
+    .calendar.any-day .d:hover { background: var(--fill-hover); }
+    .calendar.any-day .d.picked { background: var(--accent); color: #fff; }
     .date-input:invalid { border-color: var(--danger); }
 
     /* Pour schedule rows */
     .pour { display: grid; grid-template-columns: 80px 90px 1fr 32px; gap: 8px; margin-bottom: 6px; align-items: center; }
     .pour button { padding: 6px; }
 
-    /* Star rating picker */
-    .rating-pick button { border: none; background: none; font-size: 1.5rem; padding: 0 2px; color: var(--line); }
-    .rating-pick button.on { color: var(--accent); }
+    /* Tasting scores: a line with 10 marks; drag the dot along it (or tap a spot) to pick 1–10 */
+    .scale-row { display: grid; grid-template-columns: 90px 1fr 2em; gap: 10px; align-items: center; margin-bottom: 4px; }
+    .scale-row.overall { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+    .scale-row .name { font-size: .9rem; }
+    .scale-row.overall .name { font-weight: 600; }
+    /* pan-y: a sideways drag picks a score, an up/down swipe still scrolls the form */
+    .scale { height: 34px; padding: 0 10px; cursor: pointer; touch-action: pan-y; user-select: none; outline: none; }
+    .scale .rail { position: relative; height: 100%; }
+    .scale .line, .scale .fill { position: absolute; left: 0; top: 50%; height: 4px; margin-top: -2px; border-radius: 2px; background: var(--line); }
+    .scale .line { right: 0; }
+    .scale .fill { width: var(--at); background: var(--accent); }
+    .scale .marks { position: absolute; inset: 0; display: flex; justify-content: space-between; align-items: center; }
+    .scale .marks i { width: 4px; height: 4px; margin: 0 -2px; border-radius: 50%; background: var(--line); }
+    .scale .marks i.on { background: var(--accent); }
+    .scale .dot {
+      /* White knob with a soft shadow, like an iOS slider */
+      position: absolute; top: 50%; left: var(--at); width: 22px; height: 22px; margin: -11px 0 0 -11px;
+      border-radius: 50%; background: #fff; box-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 2px 6px rgba(0, 0, 0, .2);
+    }
+    .scale:focus-visible .dot { outline: 2px solid var(--accent); outline-offset: 2px; }
+    /* Not scored yet: just the plain line */
+    .scale.unset .dot, .scale.unset .fill { display: none; }
+    .scale-row .value { text-align: right; font-weight: 600; color: var(--accent); }
+    /* Example text in the tasting note boxes: a little darker so it's easy to read */
+    .tasting textarea::placeholder { color: var(--muted); opacity: .75; }
+
+    /* Photo picker in the form */
+    .photo-add {
+      width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 18px;
+      border: 1.5px dashed var(--line); border-radius: 14px; background: var(--fill); color: var(--muted);
+    }
+    .photo-add svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .photo-add:hover, .photo-field.dragging .photo-add { border-color: var(--accent); color: var(--accent); }
+    .photo-preview { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+    .photo-preview img { display: block; width: 160px; height: 160px; object-fit: cover; border-radius: 14px; background: var(--accent-soft); }
+    .photo-field.dragging .photo-preview img { outline: 2px solid var(--accent); }
+    .photo-preview .toolbar { gap: 6px; }
 
     .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
     [hidden] { display: none !important; }
@@ -177,8 +368,8 @@
     /* Sign-in screen */
     .auth-wrap { padding: 0 16px; }
     .auth {
-      max-width: 380px; margin: 12vh auto 0; padding: 24px;
-      background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+      max-width: 380px; margin: 12vh auto 0; padding: 28px;
+      background: var(--card); border-radius: 20px; box-shadow: var(--shadow);
     }
     .auth h1 { margin-bottom: 4px; }
     .auth p { color: var(--muted); margin: 0 0 20px; font-size: .9rem; }
@@ -186,13 +377,7 @@
     .auth .actions { display: flex; gap: 8px; margin-top: 16px; }
     .auth .actions button { flex: 1; }
     .auth .msg { margin-top: 14px; font-size: .9rem; }
-    .msg.err, .account .err { color: var(--danger); }
-
-    /* Signed-in bar under the header */
-    .account {
-      display: flex; justify-content: flex-end; align-items: center; gap: 10px; flex-wrap: wrap;
-      margin-top: 10px; font-size: .85rem; color: var(--muted);
-    }
+    .msg.err { color: var(--danger); }
   </style>
 </head>
 <body>
@@ -214,11 +399,15 @@
     </form>
   </div>
 
-  <div class="wrap" id="appView" hidden>
+  <div id="appView" hidden>
+  <!-- Page 1: Brew Log (the list of brews) -->
+  <section class="wrap" id="page-log">
     <header>
       <h1>Pourover <span>Log</span></h1>
       <div class="toolbar">
-        <button type="button" class="icon-btn" id="viewToggle"></button>
+        <button type="button" class="icon-btn" id="filterBtn" title="Search & filter" aria-label="Search & filter" aria-expanded="false" aria-controls="filterPanel">
+          <svg viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>
+        </button>
         <button id="exportBtn" class="icon-btn" title="Export a backup file" aria-label="Export a backup file">
           <svg viewBox="0 0 24 24" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M8 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2"/></svg>
         </button>
@@ -227,41 +416,34 @@
         <button class="primary" id="newBtn">+ New brew</button>
       </div>
     </header>
-    <div class="account">
-      <span id="syncStatus"></span>
-      <span id="userEmail"></span>
-      <button class="small" id="logoutBtn">Log out</button>
-    </div>
 
+    <!-- Search & filter options, folded away until the filter button is pressed -->
+    <div class="filter-panel" id="filterPanel" inert><div class="filter-inner">
     <div class="filters">
       <div class="search">
         <label for="q">Search</label>
         <input id="q" placeholder="Bean, roaster, origin, notes…">
       </div>
       <div>
-        <label for="fBrewer">Brewer</label>
-        <select id="fBrewer"><option value="">All</option></select>
-      </div>
-      <div>
-        <label for="fRating">Min rating</label>
-        <select id="fRating">
-          <option value="0">Any</option>
-          <option value="3">★★★+</option>
-          <option value="4">★★★★+</option>
-          <option value="5">★★★★★</option>
-        </select>
+        <label for="fDate">Date</label>
+        <div class="inline">
+          <input id="fDate" inputmode="numeric" placeholder="yyyy/mm/dd" autocomplete="off">
+          <span class="cal"><button type="button" id="fDateCal" title="Pick from calendar" aria-label="Pick from calendar" aria-expanded="false" aria-controls="calendar"></button></span>
+        </div>
       </div>
       <div>
         <label for="sort">Sort</label>
         <select id="sort">
           <option value="new">Newest</option>
           <option value="old">Oldest</option>
-          <option value="rating">Rating</option>
+          <option value="rating">Overall score</option>
         </select>
       </div>
     </div>
+    <div class="calendar" id="calendar" hidden></div>
+    </div></div>
 
-    <div id="list" class="grid"></div>
+    <div id="list"></div>
 
     <!-- Floating + button for phones; its menu slides up out of it -->
     <div class="fab" id="fab">
@@ -271,6 +453,60 @@
         <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
       </button>
     </div>
+  </section>
+
+  <!-- Page 2: My Beans. The beans you've bought; filled in by renderBeans() -->
+  <section class="wrap" id="page-beans" hidden>
+    <header><h1>My Beans</h1></header>
+    <div class="beans-actions">
+      <button type="button" class="primary" id="addBeanBtn">+ Add bean</button>
+      <button type="button" id="importBeansBtn">Add from past brews</button>
+    </div>
+    <div class="panel" id="beanItems"></div>
+  </section>
+
+  <!-- Page 3: Coffee Setup. Your equipment, one box per category; filled in by renderSetup() -->
+  <section class="wrap" id="page-setup" hidden>
+    <header><h1>Coffee Setup</h1></header>
+    <div class="gear-groups" id="gearGroups"></div>
+  </section>
+
+  <!-- Page 4: Account. To add a feature, add another .panel-section, or a .panel-item button to the actions list -->
+  <section class="wrap" id="page-account" hidden>
+    <header><h1>Account</h1></header>
+    <div class="panel">
+      <div class="panel-section">
+        <div class="panel-label">Signed in as</div>
+        <div class="panel-email" id="userEmail"></div>
+        <div class="panel-status"><span id="syncStatus"></span></div>
+      </div>
+      <div class="panel-section actions">
+        <button type="button" class="panel-item danger" id="logoutBtn">Log out</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Bottom navigation bar: each tab links to one of the pages above -->
+  <nav class="tabbar" aria-label="Main">
+    <div class="tabbar-inner">
+      <a class="tab" id="tab-log" href="#log">
+        <span class="tab-icon"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></span>
+        Brew Log
+      </a>
+      <a class="tab" id="tab-beans" href="#beans">
+        <span class="tab-icon"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="6" ry="9" transform="rotate(40 12 12)"/><path d="M7.4 17.6c2.6-1.4 2.4-4 4.6-5.6s2-4.2 4.6-5.6"/></svg></span>
+        My Beans
+      </a>
+      <a class="tab" id="tab-setup" href="#setup">
+        <span class="tab-icon"><svg viewBox="0 0 24 24"><path d="M4 6h16l-5 8H9z"/><path d="M10 14v2h4v-2M6 20h12"/></svg></span>
+        Coffee Setup
+      </a>
+      <a class="tab" id="tab-account" href="#account">
+        <span class="tab-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>
+        Account
+      </a>
+    </div>
+  </nav>
   </div>
 
   <!-- The add/edit form, shown as a popup -->
@@ -282,10 +518,21 @@
       </div>
 
       <div class="dlg-body">
+        <div class="radar-wrap" id="formRadar"></div>
+        <fieldset class="tasting">
+          <legend><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10h13v4a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 11h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M8.5 3.5v3M12.5 3.5v3"/></svg>Tasting</legend>
+          <div id="scales"></div>
+          <div style="margin-top:10px"><label>Tasting notes</label><textarea name="notes" rows="3" placeholder="e.g. Jasmine, peach, sweet clean finish"></textarea></div>
+          <div style="margin-top:10px"><label>Next time, change…</label><textarea name="nextTime" placeholder="e.g. Lower the temperature"></textarea></div>
+        </fieldset>
+
         <fieldset>
-          <legend>Coffee</legend>
+          <legend><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="12" rx="6" ry="9" transform="rotate(40 12 12)"/><path d="M7.4 17.6c2.6-1.4 2.4-4 4.6-5.6s2-4.2 4.6-5.6"/></svg>Coffee</legend>
+          <!-- Opens #beanPickDlg; the picked bean's id goes in the hidden beanId field -->
+          <button type="button" class="small bean-pick-btn" id="beanPickBtn">Choose from My Beans</button>
+          <input type="hidden" name="beanId">
           <div class="row">
-            <div><label>Bean / name</label><input name="bean" required placeholder="e.g. Kochere"></div>
+            <div><label>Bean / name</label><input name="bean" required placeholder="e.g. Kochere" list="beanList" autocomplete="off"></div>
             <div><label>Roaster</label><input name="roaster"></div>
             <div><label>Variety</label><input name="variety" list="varietyList" placeholder="Gesha, SL28…" autocomplete="off"></div>
           </div>
@@ -295,24 +542,21 @@
             <div><label>Roast date</label><div class="inline date-field"><input name="roastDate" class="date-input" inputmode="numeric" placeholder="yyyy/mm/dd"></div></div>
             <div><label>Brew date</label><div class="inline date-field"><input name="brewDate" class="date-input" inputmode="numeric" placeholder="yyyy/mm/dd"></div></div>
           </div>
+          <div class="calendar" id="formCal" hidden></div>
           <datalist id="processList">
             <option>Washed</option><option>Natural</option><option>Honey</option><option>Anaerobic</option>
           </datalist>
           <datalist id="countryList"></datalist>
           <datalist id="varietyList"></datalist>
+          <datalist id="beanList"></datalist>
         </fieldset>
 
         <fieldset>
-          <legend>Recipe</legend>
+          <legend><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2.5h6V4"/><path d="M9 10h6M9 14h6M9 18h3"/></svg>Recipe</legend>
           <div class="row">
             <div><label>Dose (g)</label><input name="dose" type="number" step="0.1" min="0"></div>
             <div><label>Water (g)</label><input name="water" type="number" step="1" min="0"></div>
             <div><label>Ratio</label><div class="ratio" id="ratioOut">—</div></div>
-          </div>
-          <div class="row">
-            <div><label>Brewer</label><input name="brewer" list="brewerList" placeholder="V60, Kalita…"></div>
-            <div><label>Grinder</label><input name="grinder" list="grinderList"></div>
-            <div><label>Grind setting</label><input name="grind"></div>
           </div>
           <div class="row">
             <div>
@@ -327,12 +571,28 @@
             </div>
             <div><label>Total time</label><input name="time" class="time-input" inputmode="numeric" placeholder="type 300 → 3:00"></div>
           </div>
-          <datalist id="brewerList"></datalist>
-          <datalist id="grinderList"></datalist>
         </fieldset>
 
         <fieldset>
-          <legend>Pour schedule</legend>
+          <legend><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16l-5 9H9z"/><path d="M9 14v3h6v-3"/><path d="M5 20h14"/></svg>Equipment</legend>
+          <!-- Choices come from Coffee Setup; filled in by fillGearSelect() -->
+          <div class="row">
+            <div><label>Brewer</label><select name="brewerId"></select></div>
+            <div><label>Filter</label><select name="filterId"></select></div>
+          </div>
+          <div class="row">
+            <div><label>Grinder</label><select name="grinderId"></select></div>
+            <div><label>Grind setting</label><input name="grind"></div>
+          </div>
+          <label>Others</label>
+          <div class="checks">
+            <span class="checks" id="othersPick"></span>
+            <button type="button" class="small" id="addOther">+ Add other gear</button>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3s-6 7-6 11a6 6 0 0 0 12 0c0-4-6-11-6-11z"/></svg>Pour schedule</legend>
           <div class="pour" style="font-size:.8rem;color:var(--muted)">
             <span>Time</span><span>To (g)</span><span>Note</span><span></span>
           </div>
@@ -341,11 +601,22 @@
         </fieldset>
 
         <fieldset>
-          <legend>Tasting</legend>
-          <label>Rating</label>
-          <div class="rating-pick" id="ratingPick"></div>
-          <div style="margin-top:10px"><label>Tasting notes</label><textarea name="notes" placeholder="Jasmine, bergamot, clean finish…"></textarea></div>
-          <div style="margin-top:10px"><label>Next time, change…</label><textarea name="nextTime" placeholder="Grind a little finer"></textarea></div>
+          <legend><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Photo</legend>
+          <div class="photo-field" id="photoField">
+            <button type="button" class="photo-add" id="photoAdd">
+              <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-9 8"/></svg>
+              Add a photo
+            </button>
+            <div class="photo-preview" id="photoPreview" hidden>
+              <img id="photoImg" alt="Photo of this brew">
+              <div class="toolbar">
+                <button type="button" class="small" id="photoChange">Change</button>
+                <button type="button" class="small danger" id="photoRemove">Remove</button>
+              </div>
+            </div>
+            <!-- No name, so it isn't saved with the form; the photo is handled separately -->
+            <input type="file" id="photoFile" accept="image/*" hidden>
+          </div>
         </fieldset>
       </div>
 
@@ -357,6 +628,96 @@
         <button type="submit" class="primary">Save</button>
       </div>
     </form>
+  </dialog>
+
+  <!-- The add/edit equipment form (Coffee Setup), shown as a popup -->
+  <dialog id="gearDlg">
+    <form id="gearForm" method="dialog">
+      <div class="dlg-head">
+        <h2 id="gearTitle">Add equipment</h2>
+        <button type="button" class="small" id="gearCloseBtn">✕</button>
+      </div>
+
+      <div class="dlg-body">
+        <div class="gear-search" id="gearSearch">
+          <label for="gearQ">Find a product</label>
+          <!-- No name, so it isn't saved with the form -->
+          <input id="gearQ" placeholder="e.g. Timemore Sculptor 078S" autocomplete="off">
+          <div class="gear-results" id="gearResults" hidden></div>
+          <p class="hint">Not in the list? Just fill in the details below.</p>
+        </div>
+        <div class="row">
+          <div><label>Category</label><select name="category" id="gearCategory"></select></div>
+          <div id="gearTypeField"><label>Type</label><input name="type" list="gearTypeList" placeholder="Scale, server, kettle…" autocomplete="off"></div>
+        </div>
+        <div class="row">
+          <div><label>Brand</label><input name="brand" placeholder="e.g. Hario"></div>
+          <div><label>Name / model</label><input name="name" required placeholder="e.g. V60 02"></div>
+        </div>
+        <div class="row">
+          <div><label>Product link</label><input name="url" type="url" placeholder="https://…"></div>
+        </div>
+        <div><label>Notes</label><textarea name="notes" placeholder="Burr set, size, colour…"></textarea></div>
+        <datalist id="gearTypeList"></datalist>
+      </div>
+
+      <div class="dlg-foot">
+        <div class="toolbar">
+          <button type="button" class="danger" id="gearDeleteBtn">Delete</button>
+        </div>
+        <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- The add/edit bean form (My Beans), shown as a popup -->
+  <dialog id="beanDlg">
+    <form id="beanForm" method="dialog">
+      <div class="dlg-head">
+        <h2 id="beanTitle">Add bean</h2>
+        <button type="button" class="small" id="beanCloseBtn">✕</button>
+      </div>
+
+      <div class="dlg-body">
+        <div class="row">
+          <div><label>Bean / name</label><input name="name" required placeholder="e.g. Kochere" autocomplete="off"></div>
+          <div><label>Roaster</label><input name="roaster"></div>
+        </div>
+        <div class="row">
+          <div><label>Origin</label><input name="origin" list="countryList" placeholder="Start typing a country…" autocomplete="off"></div>
+          <div><label>Variety</label><input name="variety" list="varietyList" placeholder="Gesha, SL28…" autocomplete="off"></div>
+        </div>
+        <div class="row">
+          <div><label>Process</label><input name="process" list="processList" placeholder="Washed, Natural…"></div>
+          <div><label>Roast date</label><div class="inline date-field"><input name="roastDate" class="date-input" inputmode="numeric" placeholder="yyyy/mm/dd"></div></div>
+        </div>
+        <div class="calendar" id="beanCal" hidden></div>
+        <div><label>Notes</label><textarea name="notes" placeholder="Where you bought it, price, farm…"></textarea></div>
+      </div>
+
+      <div class="dlg-foot">
+        <div class="toolbar">
+          <button type="button" class="danger" id="beanDeleteBtn">Delete</button>
+        </div>
+        <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Picking a bean from My Beans in the brew form, shown as a popup on top of it -->
+  <dialog id="beanPickDlg">
+    <div class="dlg-head">
+      <h2>Choose a bean</h2>
+      <button type="button" class="small" id="beanPickCloseBtn">✕</button>
+    </div>
+    <div class="dlg-body">
+      <input id="beanPickQ" placeholder="Search your beans" autocomplete="off">
+      <div class="bean-pick-list" id="beanPickList"></div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" id="beanPickNone">Don't link a bean</button>
+      <button type="button" class="primary" id="beanPickNew">+ Add a new bean</button>
+    </div>
   </dialog>
 
   <!-- ============================================================
@@ -379,37 +740,65 @@
 
     let user = null;
     let brews = [];
+    let gear = []; // your equipment from Coffee Setup
+    let beans = []; // your beans from My Beans
 
-    // A copy of your brews is also kept in this browser, so the app opens instantly
+    // A copy of your brews and equipment is also kept in this browser, so the app opens instantly
     const cacheKey = () => `pourover-log-cache-${user.id}`;
-    function loadCache() {
-      try { return JSON.parse(localStorage.getItem(cacheKey())) || []; }
+    const gearCacheKey = () => `pourover-log-gear-${user.id}`;
+    const beanCacheKey = () => `pourover-log-beans-${user.id}`;
+    function loadCache(key) {
+      try { return JSON.parse(localStorage.getItem(key)) || []; }
       catch { return []; }
     }
     function cacheBrews() {
       try { localStorage.setItem(cacheKey(), JSON.stringify(brews)); } catch {}
     }
+    function cacheGear() {
+      try { localStorage.setItem(gearCacheKey(), JSON.stringify(gear)); } catch {}
+    }
+    function cacheBeans() {
+      try { localStorage.setItem(beanCacheKey(), JSON.stringify(beans)); } catch {}
+    }
 
     function setStatus(text, isError = false) {
       $('syncStatus').textContent = text;
       $('syncStatus').className = isError ? 'err' : '';
+      // The status lives on the Account page, so flag problems on its tab too
+      $('tab-account').classList.toggle('has-badge', isError);
     }
 
-    // ---------- Reading & writing brews online ----------
-    async function fetchBrews() {
+    // ---------- Reading & writing brews, equipment and beans online ----------
+    // All tables keep each item's details in a `data` column, next to its id
+    async function fetchAll() {
       setStatus('Syncing…');
-      const { data, error } = await db.from('brews').select('id, data');
-      if (error) return setStatus('Offline: showing the last synced copy', true);
-      brews = data.map(row => ({ ...row.data, id: row.id }));
+      const [b, g, bn] = await Promise.all([
+        db.from('brews').select('id, data'),
+        db.from('equipment').select('id, data'),
+        db.from('beans').select('id, data'),
+      ]);
+      if (b.error) return setStatus('Offline: showing the last synced copy', true);
+      brews = b.data.map(row => ({ ...row.data, id: row.id }));
       cacheBrews();
+      if (!g.error) {
+        gear = g.data.map(row => ({ ...row.data, id: row.id }));
+        moveKettlesToOthers();
+        cacheGear();
+      }
+      if (!bn.error) {
+        beans = bn.data.map(row => ({ ...row.data, id: row.id }));
+        cacheBeans();
+      }
       render();
-      setStatus('Synced');
+      if (g.error) setStatus('Coffee Setup not synced: check your connection', true);
+      else if (bn.error) setStatus('My Beans not synced: check your connection', true);
+      else setStatus('Synced');
     }
 
-    async function uploadBrews(list) {
+    async function uploadRows(table, list) {
       setStatus('Saving…');
       const rows = list.map(({ id, ...data }) => ({ id, data, updated_at: new Date().toISOString() }));
-      const { error } = await db.from('brews').upsert(rows);
+      const { error } = await db.from(table).upsert(rows);
       if (error) {
         setStatus('Not saved: check your connection', true);
         return false;
@@ -417,11 +806,115 @@
       setStatus('Synced');
       return true;
     }
+    // Kettles used to be their own category; now they're Others with the type "Kettle".
+    // Moves any saved the old way (gear and brews), and saves the moved ones.
+    function moveKettlesToOthers() {
+      const oldGear = gear.filter(g => g.category === 'kettle');
+      oldGear.forEach(g => { g.category = 'other'; g.type = 'Kettle'; });
+      const oldBrews = brews.filter(b => b.kettle || b.kettleId);
+      oldBrews.forEach(b => {
+        if (b.kettleId) b.others = [...(b.others || []), { id: b.kettleId, name: b.kettle || '', type: 'Kettle' }];
+        delete b.kettle;
+        delete b.kettleId;
+      });
+      if (oldBrews.length) { cacheBrews(); uploadBrews(oldBrews); }
+      if (oldGear.length) uploadGear(oldGear);
+    }
 
-    async function deleteBrewOnline(id) {
+    function uploadBrews(list) { return uploadRows('brews', list); }
+    function uploadGear(list) { return uploadRows('equipment', list); }
+    function uploadBeans(list) { return uploadRows('beans', list); }
+
+    // Deletes one equipment item or bean
+    async function deleteRowOnline(table, id) {
+      setStatus('Saving…');
+      const { error } = await db.from(table).delete().eq('id', id);
+      setStatus(error ? 'Delete failed: check your connection' : 'Synced', !!error);
+    }
+
+    async function deleteBrewOnline(id, photo) {
       setStatus('Saving…');
       const { error } = await db.from('brews').delete().eq('id', id);
       setStatus(error ? 'Delete failed: check your connection' : 'Synced', !!error);
+      if (!error) deletePhotoOnline(photo);
+    }
+
+    // Saves a new or edited brew. If it has a new photo, that is uploaded first.
+    // oldPhoto is the photo the brew had before; it's deleted once it's no longer used.
+    async function saveBrew(brew, photoBlob, oldPhoto) {
+      const photo = brew.photo;
+      let photoSaved = true;
+      if (photoBlob) {
+        setStatus('Saving photo…');
+        photoSaved = await uploadPhoto(photo, photoBlob);
+      }
+      // Use the latest copy, in case the brew was changed or deleted while the photo uploaded
+      const latest = brews.find(b => b.id === brew.id);
+      if (!latest) return;
+      if (!photoSaved && latest.photo === photo) {
+        latest.photo = oldPhoto; // keep the brew, just without the new photo
+        cacheBrews();
+        render();
+      }
+      if (!await uploadBrews([latest])) return;
+      if (!photoSaved) return setStatus('Photo not saved: check your connection', true);
+      if (oldPhoto && oldPhoto !== latest.photo) deletePhotoOnline(oldPhoto);
+    }
+
+    // ---------- Photos ----------
+    // Photos are stored as files in Supabase Storage (not in the brew itself, which would make it
+    // too big to keep in this browser). A brew's `photo` is the file's name, like "<user id>/<random id>.jpg".
+    // The storage is private, so each photo is shown through a temporary link from Supabase.
+    const PHOTO_BUCKET = 'brew-photos';
+    const photoUrls = new Map(); // file name → link (null while asking for it, '' if the photo is missing)
+    let photoUrlsSince = Date.now();
+
+    async function uploadPhoto(path, blob) {
+      const { error } = await db.storage.from(PHOTO_BUCKET).upload(path, blob, { contentType: 'image/jpeg' });
+      return !error;
+    }
+
+    async function deletePhotoOnline(path) {
+      // If this fails, the only harm is an unused file left in storage
+      if (path) await db.storage.from(PHOTO_BUCKET).remove([path]);
+    }
+
+    // Ask Supabase for links to any photos we can't show yet, then redraw
+    async function loadPhotoUrls() {
+      // Links last a week; get fresh ones every day so an open tab never ends up with expired ones
+      if (Date.now() - photoUrlsSince > 24 * 60 * 60 * 1000) { photoUrls.clear(); photoUrlsSince = Date.now(); }
+      const missing = [...new Set(brews.map(b => b.photo).filter(p => p && !photoUrls.has(p)))];
+      if (!missing.length) return;
+      missing.forEach(p => photoUrls.set(p, null));
+      const { data, error } = await db.storage.from(PHOTO_BUCKET).createSignedUrls(missing, 7 * 24 * 60 * 60);
+      if (error) { missing.forEach(p => photoUrls.delete(p)); return; } // offline: try again next time
+      data.forEach(d => photoUrls.set(d.path, d.signedUrl || ''));
+      render();
+      drawFormPhoto();
+    }
+
+    // Phone photos are huge, so shrink them to at most 1200px on the long side and save as JPEG.
+    // (On iPhone, HEIC photos are converted to JPEG automatically when picked.)
+    async function shrinkPhoto(file) {
+      const MAX = 1200;
+      const src = URL.createObjectURL(file);
+      try {
+        const img = new Image();
+        img.src = src;
+        await img.decode();
+        const scale = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.naturalWidth * scale);
+        canvas.height = Math.round(img.naturalHeight * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff'; // see-through parts of PNGs become white instead of black
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        return await new Promise((resolve, reject) =>
+          canvas.toBlob(b => b ? resolve(b) : reject(new Error('Could not convert photo')), 'image/jpeg', 0.82));
+      } finally {
+        URL.revokeObjectURL(src);
+      }
     }
 
     // First sign-in on a browser that already has brews saved: offer to upload them
@@ -444,16 +937,24 @@
       $('authView').hidden = true;
       $('appView').hidden = false;
       $('userEmail').textContent = user.email;
-      brews = loadCache();
+      showPage();
+      brews = loadCache(cacheKey());
+      gear = loadCache(gearCacheKey());
+      beans = loadCache(beanCacheKey());
       render();
       await offerLocalUpload();
-      await fetchBrews();
+      await fetchAll();
     }
 
     function showSignedOut() {
       $('appView').hidden = true;
       $('authView').hidden = false;
       brews = [];
+      gear = [];
+      beans = [];
+      photoUrls.clear();
+      // Start the next sign-in on the Brew Log page
+      if (location.hash) history.replaceState(null, '', location.pathname + location.search);
     }
 
     db.auth.onAuthStateChange((event, session) => {
@@ -493,13 +994,17 @@
     };
 
     $('logoutBtn').onclick = async () => {
-      try { localStorage.removeItem(cacheKey()); } catch {}
+      try {
+        localStorage.removeItem(cacheKey());
+        localStorage.removeItem(gearCacheKey());
+        localStorage.removeItem(beanCacheKey());
+      } catch {}
       await db.auth.signOut();
     };
 
     // When you come back to the app (e.g. switch tabs or reopen it on your phone), grab the latest brews
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && user) fetchBrews();
+      if (!document.hidden && user) fetchAll();
     });
 
     // Coffee-growing countries, used for the Origin suggestions
@@ -522,119 +1027,258 @@
       'Parainema', 'Marsellesa', 'Ethiopian Landrace', '74110', '74158', 'Kurume', 'Eugenioides'
     ];
 
-    // Grid or list view, remembered between visits
-    let view = 'grid';
-    try { view = localStorage.getItem('pourover-log-view') || 'grid'; } catch {}
-    const LIST_ICON = '<svg viewBox="0 0 24 24"><circle cx="4" cy="6" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="18" r="1" fill="currentColor"/><path d="M9 6h12M9 12h12M9 18h12"/></svg>';
-    const GRID_ICON = '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>';
-
-    // The button shows the view you'd switch *to*
-    function updateViewToggle() {
-      const next = view === 'grid' ? 'list' : 'grid';
-      $('viewToggle').innerHTML = next === 'list' ? LIST_ICON : GRID_ICON;
-      $('viewToggle').title = `Switch to ${next} view`;
-      $('viewToggle').setAttribute('aria-label', `Switch to ${next} view`);
-    }
-    $('viewToggle').onclick = () => {
-      view = view === 'grid' ? 'list' : 'grid';
-      try { localStorage.setItem('pourover-log-view', view); } catch {}
-      render();
-    };
-
     // ---------- Small helpers ----------
-    const today = () => new Date().toISOString().slice(0, 10);
+    // Today's date on this device as "YYYY-MM-DD" (not UTC, which can already be tomorrow)
+    const today = () => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
     // Dates are saved as 2026-10-23 (sorts correctly) but shown as 2026/10/23
     const toDisplayDate = (d) => (d || '').replaceAll('-', '/');
     const toSavedDate = (d) => (d || '').replaceAll('/', '-');
-    const stars = (n) => '★'.repeat(n || 0) + '☆'.repeat(5 - (n || 0));
+    // Tasting scores, each 1–10 (0 = not scored yet)
+    const TASTES = [['body', 'Body'], ['acidity', 'Acidity'], ['sweetness', 'Sweetness'], ['bitterness', 'Bitterness'], ['clarity', 'Clarity']];
+    // Older brews had a 1–5 star "rating" instead of "overall", so double it
+    const overallOf = (b) => 'overall' in b ? b.overall || 0 : (b.rating || 0) * 2;
+    // Overall score as a bar along the card's top edge (nothing when not scored)
+    // Its colour slides from red (0) through yellow to green (10)
+    const scoreBarHtml = (n) => !n ? '' : `<div class="score-bar" role="img" aria-label="Overall ${n}/10" title="Overall ${n}/10"><span style="width:${n * 10}%; background:hsl(${n * 12} 72% 46%)"></span></div>`;
+    const tasteLine = (b) => TASTES.filter(([key]) => b[key]).map(([key, label]) => `${label} ${b[key]}`).join(' · ');
+    // Pentagon chart of the five tasting scores. Corners go clockwise from the top
+    // (Body, Acidity, Sweetness, Bitterness, Clarity); 10 is the outer edge, unscored sits in the middle.
+    function radarSvg(b, big = false) {
+      const R = 70;
+      const at = (i, n) => {
+        const angle = -Math.PI / 2 + i * 2 * Math.PI / TASTES.length;
+        return [Math.cos(angle) * R * n / 10, Math.sin(angle) * R * n / 10];
+      };
+      const polygon = (n) => TASTES.map((_, i) => at(i, typeof n === 'function' ? n(i) : n).map(v => v.toFixed(1)).join(',')).join(' ');
+      const value = (i) => Math.min(10, Math.max(0, Number(b[TASTES[i][0]]) || 0));
+      const rings = (big ? [2, 4, 6, 8, 10] : [5, 10]).map(n => `<polygon class="ring" points="${polygon(n)}"/>`).join('');
+      const spokes = TASTES.map((_, i) => { const [x, y] = at(i, 10); return `<line class="spoke" x1="0" y1="0" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`; }).join('');
+      const dots = TASTES.map((_, i) => { if (!value(i)) return ''; const [x, y] = at(i, value(i)); return `<circle class="pt" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3"/>`; }).join('');
+      // Names just outside each corner: with the score in the large version, name only on the cards
+      const names = TASTES.map(([, label], i) => {
+        if (!big) {
+          const [x, y] = at(i, 10);
+          const side = y < 0 && Math.abs(x) > 5; // the two upper side corners: put the name beside them
+          const tx = side ? x + Math.sign(x) * 8 : x;
+          const ty = side ? y : y + Math.sign(y) * 14;
+          // the bottom two names point away from each other so long names don't touch
+          const anchor = Math.abs(x) < 5 ? 'middle' : x > 0 ? 'start' : 'end';
+          return `<text x="${(side ? tx : tx - Math.sign(x) * 12).toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle">${label}</text>`;
+        }
+        const [x, y] = at(i, 11.5);
+        const anchor = x > 5 ? 'start' : x < -5 ? 'end' : 'middle';
+        const dy = y < -R ? -4 : y > R / 2 ? 8 : 0;
+        return `<text x="${x.toFixed(1)}" y="${(y + dy).toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle">${label} <tspan>${value(i) || '–'}</tspan></text>`;
+      }).join('');
+      const viewBox = big ? '-140 -95 280 180' : '-142 -94 284 178';
+      return `<svg class="radar" viewBox="${viewBox}" role="img" aria-label="${escapeHtml(tasteLine(b) || 'No tasting scores yet')}">
+        ${rings}${spokes}<polygon class="shape" points="${polygon(value)}"/>${dots}${names}</svg>`;
+    }
+    // Small line icons for the brewer / ratio / temperature / time list on the cards
+    const FACT_ICONS = {
+      // A cone dripper sitting on a cup rim
+      brewer: '<path d="M4 5h16l-5 9H9z"/><path d="M9 14v3h6v-3"/><path d="M5 20h14"/>',
+      // A balance scale: coffee against water
+      ratio: '<path d="M12 4v16"/><path d="M8 20h8"/><path d="M5 7h14"/><path d="M5 7l-3 6a3 3 0 0 0 6 0z"/><path d="M19 7l-3 6a3 3 0 0 0 6 0z"/>',
+      // A thermometer
+      temp: '<path d="M14 14.8V4.5a2 2 0 0 0-4 0v10.3a4 4 0 1 0 4 0z"/><path d="M12 11v6"/>',
+      // A clock
+      time: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    };
+    const factHtml = (icon, text) => `<li><svg viewBox="0 0 24 24" aria-hidden="true">${FACT_ICONS[icon]}</svg><span>${text}</span></li>`;
     const ratio = (dose, water) => (dose > 0 && water > 0) ? `1:${(water / dose).toFixed(1)}` : '—';
     const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
     // ---------- Drawing the list of recipe cards ----------
+    // Heading for one day's section, e.g. "2026/10/31 Sat"
+    function dayTitle(date) {
+      if (!date) return 'No date';
+      const weekday = new Date(date + 'T00:00').toLocaleDateString('en-US', { weekday: 'short' });
+      return `${escapeHtml(toDisplayDate(date))}${weekday === 'Invalid Date' ? '' : ` <span>${weekday}</span>`}`;
+    }
+
+    // One recipe card
+    function cardHtml(b) {
+      // Photo on the right, only if the brew has one (and it wasn't found missing)
+      const photoUrl = b.photo ? photoUrls.get(b.photo) : '';
+      const photo = photoUrl === '' ? ''
+        : `<div class="card-photo">${photoUrl ? `<img src="${escapeHtml(photoUrl)}" alt="" loading="lazy">` : ''}</div>`;
+      // Taste chart under the photo, only if at least one taste was scored
+      const radar = TASTES.some(([key]) => b[key]) ? radarSvg(b) : '';
+      return `
+      <div class="card${photo || radar ? ' has-side' : ''}" data-id="${b.id}">
+        ${scoreBarHtml(overallOf(b))}
+        <div class="card-main">
+        <h3>${escapeHtml(b.bean)}</h3>
+        <div class="sub">${escapeHtml([b.roaster, b.origin, b.variety, b.process].filter(Boolean).join(' · '))}</div>
+        <ul class="facts">
+          ${b.brewer ? factHtml('brewer', escapeHtml(b.brewer)) : ''}
+          ${b.dose && b.water ? factHtml('ratio', `${b.dose}g : ${b.water}g (${ratio(b.dose, b.water)})`) : ''}
+          ${b.temp ? factHtml('temp', `${b.temp}°${b.tempUnit || 'C'}`) : ''}
+          ${b.time ? factHtml('time', escapeHtml(b.time)) : ''}
+        </ul>
+        </div>
+        ${photo || radar ? `<div class="card-side">${photo}${radar}</div>` : ''}
+      </div>`;
+    }
+
     function render() {
       const q = $('q').value.trim().toLowerCase();
-      const brewer = $('fBrewer').value;
-      const minRating = Number($('fRating').value);
+      // Date filter: a full date shows that day; a part like "2026/10" shows the whole month
+      const day = $('fDate').value.trim();
+      // A dot on the filter button reminds you some brews are hidden, even when the panel is closed
+      $('filterBtn').classList.toggle('has-badge', !!(q || day));
 
       let shown = brews.filter(b => {
-        const haystack = [b.bean, b.roaster, b.origin, b.variety, b.process, b.brewer, b.grinder, b.notes].join(' ').toLowerCase();
+        const haystack = [b.bean, b.roaster, b.origin, b.variety, b.process, b.brewer, b.grinder, b.filter,
+          ...(b.others || []).map(o => o.name), b.notes].join(' ').toLowerCase();
         return (!q || haystack.includes(q))
-          && (!brewer || b.brewer === brewer)
-          && (b.rating || 0) >= minRating;
+          && (!day || toDisplayDate(b.brewDate).startsWith(day));
       });
 
       const sort = $('sort').value;
       shown.sort((a, b) =>
-        sort === 'rating' ? (b.rating || 0) - (a.rating || 0)
+        sort === 'rating' ? overallOf(b) - overallOf(a)
         : sort === 'old' ? (a.brewDate || '').localeCompare(b.brewDate || '')
         : (b.brewDate || '').localeCompare(a.brewDate || ''));
 
-      $('list').className = (view === 'list' && shown.length) ? 'table-wrap' : 'grid';
-      updateViewToggle();
-
       if (!brews.length) {
-        $('list').innerHTML = `<div class="empty" style="grid-column:1/-1">No brews yet. Click <b>+ New brew</b> to log your first one.</div>`;
+        $('list').innerHTML = `<div class="empty">No brews yet. Click <b>+ New brew</b> to log your first one.</div>`;
       } else if (!shown.length) {
-        $('list').innerHTML = `<div class="empty" style="grid-column:1/-1">No brews match your search.</div>`;
-      } else if (view === 'list') {
-        $('list').innerHTML = `
-          <table>
-            <thead><tr>
-              <th>Date</th><th>Bean</th><th>Roaster</th><th>Origin</th><th>Variety</th><th>Process</th>
-              <th>Brewer</th><th>Recipe</th><th>Temp</th><th>Time</th><th>Rating</th>
-            </tr></thead>
-            <tbody>
-              ${shown.map(b => `
-                <tr data-id="${b.id}">
-                  <td>${escapeHtml(toDisplayDate(b.brewDate))}</td>
-                  <td><b>${escapeHtml(b.bean)}</b></td>
-                  <td>${escapeHtml(b.roaster)}</td>
-                  <td>${escapeHtml(b.origin)}</td>
-                  <td>${escapeHtml(b.variety)}</td>
-                  <td>${escapeHtml(b.process)}</td>
-                  <td>${escapeHtml(b.brewer)}</td>
-                  <td>${b.dose && b.water ? `${b.dose}g : ${b.water}g (${ratio(b.dose, b.water)})` : ''}</td>
-                  <td>${b.temp ? `${b.temp}°${b.tempUnit || 'C'}` : ''}</td>
-                  <td>${escapeHtml(b.time)}</td>
-                  <td class="stars">${stars(b.rating)}</td>
-                </tr>`).join('')}
-            </tbody>
-          </table>`;
+        $('list').innerHTML = `<div class="empty">No brews match your search.</div>`;
       } else {
-        $('list').innerHTML = shown.map(b => `
-          <div class="card" data-id="${b.id}">
-            <h3>${escapeHtml(b.bean)}</h3>
-            <div class="sub">${escapeHtml([b.roaster, b.origin, b.variety, b.process].filter(Boolean).join(' · '))}</div>
-            <div class="chips">
-              ${b.brewer ? `<span class="chip">${escapeHtml(b.brewer)}</span>` : ''}
-              ${b.dose && b.water ? `<span class="chip">${b.dose}g : ${b.water}g (${ratio(b.dose, b.water)})</span>` : ''}
-              ${b.temp ? `<span class="chip">${b.temp}°${b.tempUnit || 'C'}</span>` : ''}
-              ${b.time ? `<span class="chip">${escapeHtml(b.time)}</span>` : ''}
-            </div>
-            <div class="stars">${stars(b.rating)}</div>
-            <div class="sub">${escapeHtml(toDisplayDate(b.brewDate))}</div>
-          </div>`).join('');
+        // Sorting by score still groups by day (newest first), with the best brew of each day first
+        if (sort === 'rating') shown.sort((a, b) => (b.brewDate || '').localeCompare(a.brewDate || '') || overallOf(b) - overallOf(a));
+        // Brews without a date go last, in a "No date" section
+        shown = [...shown.filter(b => b.brewDate), ...shown.filter(b => !b.brewDate)];
+        const days = [];
+        for (const b of shown) {
+          const last = days[days.length - 1];
+          if (last && last.date === (b.brewDate || '')) last.brews.push(b);
+          else days.push({ date: b.brewDate || '', brews: [b] });
+        }
+        $('list').innerHTML = days.map(d => `
+          <section class="day">
+            <h2 class="day-head">${dayTitle(d.date)}</h2>
+            <div class="grid">${d.brews.map(cardHtml).join('')}</div>
+          </section>`).join('');
       }
 
+      if (!$('calendar').hidden) filterCal.draw(); // brews may have been added or moved to another day
       refreshDropdowns();
+      loadPhotoUrls();
+      renderSetup(); // it shows how many brews use each item
+      renderBeans(); // same for each bean
     }
 
-    // Fill the brewer filter + autocomplete with values you've used before
+    // ---------- Month calendar (date filter and the form's date fields) ----------
+    const CAL_ICON = '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
+    const pad2 = (n) => String(n).padStart(2, '0');
+    // Draws a month calendar into `box` and returns { open, close, draw, month }.
+    //   input:     the yyyy/mm/dd text field it reads the picked day from
+    //   onlyBrewDays: true → only days with brews are tinted and can be picked
+    //   clearLabel: text of the button that empties the field
+    //   onPick(date): called with "YYYY-MM-DD", or '' when cleared
+    function makeCalendar(box, { input, onlyBrewDays, clearLabel, onPick }) {
+      const cal = { month: '' }; // the month on show, as "YYYY-MM"
+      cal.draw = () => {
+        const [y, m] = cal.month.split('-').map(Number);
+        const brewDays = new Set(brews.map(b => b.brewDate).filter(Boolean));
+        // The typed day is selected; with no full date typed, today is selected
+        const typed = toSavedDate(input().value.trim());
+        const picked = /^\d{4}-\d{2}-\d{2}$/.test(typed) ? typed : today();
+        const blanks = new Date(y, m - 1, 1).getDay(); // empty cells before the 1st (weeks start on Sunday)
+        const daysInMonth = new Date(y, m, 0).getDate();
+        const title = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        let cells = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(w => `<span class="wd">${w}</span>`).join('');
+        cells += '<span></span>'.repeat(blanks);
+        for (let d = 1; d <= daysInMonth; d++) {
+          const date = `${y}-${pad2(m)}-${pad2(d)}`;
+          const has = onlyBrewDays && brewDays.has(date);
+          const off = onlyBrewDays && !has;
+          cells += `<button type="button" class="d${has ? ' has' : ''}${date === picked ? ' picked' : ''}" data-date="${date}"${off ? ' disabled' : ''}>${d}</button>`;
+        }
+        box.classList.toggle('any-day', !onlyBrewDays);
+        box.innerHTML = `
+          <div class="cal-head">
+            <button type="button" data-step="-1" aria-label="Previous month">‹</button>
+            <span>${title}</span>
+            <button type="button" data-step="1" aria-label="Next month">›</button>
+          </div>
+          <div class="cal-grid">${cells}</div>
+          <div class="cal-foot"><button type="button" data-clear>${clearLabel}</button></div>`;
+      };
+      cal.open = () => {
+        // Start on the typed month, otherwise this month
+        const typed = toSavedDate(input().value.trim());
+        cal.month = (/^\d{4}-\d{2}/.test(typed) ? typed : today()).slice(0, 7);
+        cal.draw();
+        box.hidden = false;
+      };
+      cal.close = () => { box.hidden = true; };
+      box.onclick = (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        if (btn.dataset.step) {
+          const [y, m] = cal.month.split('-').map(Number);
+          const next = new Date(y, m - 1 + Number(btn.dataset.step), 1);
+          cal.month = `${next.getFullYear()}-${pad2(next.getMonth() + 1)}`;
+          cal.draw();
+          return;
+        }
+        input().value = btn.dataset.date ? toDisplayDate(btn.dataset.date) : '';
+        cal.close();
+        onPick(btn.dataset.date || '');
+      };
+      return cal;
+    }
+
+    // Date filter: only days with brews can be picked
+    const filterCal = makeCalendar($('calendar'), {
+      input: () => $('fDate'), onlyBrewDays: true, clearLabel: 'Show all dates',
+      onPick: () => { $('fDateCal').setAttribute('aria-expanded', false); render(); },
+    });
+    $('fDateCal').innerHTML = CAL_ICON;
+    $('fDateCal').onclick = () => {
+      if ($('calendar').hidden) filterCal.open(); else filterCal.close();
+      $('fDateCal').setAttribute('aria-expanded', !$('calendar').hidden);
+    };
+    // Typing a date: slashes are added for you, and the list narrows as you type
+    $('fDate').oninput = () => {
+      $('fDate').value = formatDate($('fDate').value);
+      const typed = toSavedDate($('fDate').value);
+      if (!$('calendar').hidden && /^\d{4}-\d{2}/.test(typed)) filterCal.month = typed.slice(0, 7);
+      render();
+    };
+
+    // Fill the variety and bean autocompletes with values you've used before
     function refreshDropdowns() {
       const unique = (key) => [...new Set(brews.map(b => b[key]).filter(Boolean))].sort();
-      const current = $('fBrewer').value;
-      $('fBrewer').innerHTML = '<option value="">All</option>' +
-        unique('brewer').map(v => `<option ${v === current ? 'selected' : ''}>${escapeHtml(v)}</option>`).join('');
-      const defaults = { brewer: ['V60', 'Kalita Wave', 'Origami', 'Chemex', 'April', 'Orea'] };
-      $('brewerList').innerHTML = [...new Set([...unique('brewer'), ...defaults.brewer])].map(v => `<option>${escapeHtml(v)}</option>`).join('');
-      $('grinderList').innerHTML = unique('grinder').map(v => `<option>${escapeHtml(v)}</option>`).join('');
       $('varietyList').innerHTML = [...new Set([...unique('variety'), ...VARIETIES])].map(v => `<option>${escapeHtml(v)}</option>`).join('');
+      // Beans: most recently brewed first, with the roaster and origin as a hint
+      const beans = new Map();
+      [...brews].sort((a, b) => (b.brewDate || '').localeCompare(a.brewDate || ''))
+        .forEach(b => { if (b.bean && !beans.has(b.bean.trim().toLowerCase())) beans.set(b.bean.trim().toLowerCase(), b); });
+      $('beanList').innerHTML = [...beans.values()].map(b =>
+        `<option value="${escapeHtml(b.bean.trim())}">${escapeHtml([b.roaster, b.origin].filter(Boolean).join(' · '))}</option>`).join('');
+    }
+
+    // The latest brew of a bean, matched by name (ignoring case and extra spaces)
+    function latestBrewOf(bean) {
+      const name = bean.trim().toLowerCase();
+      if (!name) return null;
+      return brews.filter(b => (b.bean || '').trim().toLowerCase() === name)
+        .sort((a, b) => (b.brewDate || '').localeCompare(a.brewDate || ''))[0] || null;
     }
 
     // ---------- The add/edit form ----------
     const form = $('form');
     let editingId = null;
-    let currentRating = 0;
+    let formOrig = {}; // the brew as it was when the form opened (to keep its equipment names)
+    let scores = {}; // tasting scores picked in the form, e.g. { overall: 8, body: 6 }
 
     function addPourRow(p = {}) {
       const row = document.createElement('div');
@@ -648,16 +1292,63 @@
       $('pours').appendChild(row);
     }
 
-    function drawRating() {
-      $('ratingPick').innerHTML = [1, 2, 3, 4, 5].map(n =>
-        `<button type="button" data-n="${n}" class="${n <= currentRating ? 'on' : ''}">★</button>`).join('');
+    // Tasting score lines: drag the dot with a finger or the mouse, or tap a spot on the line.
+    // Tapping the current score again clears it. Arrow keys work too.
+    $('scales').innerHTML = [...TASTES, ['overall', 'Overall']].map(([key, label]) => `
+      <div class="scale-row${key === 'overall' ? ' overall' : ''}">
+        <span class="name">${label}</span>
+        <div class="scale" data-key="${key}" role="slider" tabindex="0" aria-label="${label}" aria-valuemin="0" aria-valuemax="10">
+          <div class="rail"><span class="line"></span><span class="fill"></span>
+            <span class="marks">${'<i></i>'.repeat(10)}</span><span class="dot"></span></div>
+        </div>
+        <span class="value"></span>
+      </div>`).join('');
+
+    function drawScales() {
+      $('scales').querySelectorAll('.scale').forEach(bar => {
+        const n = scores[bar.dataset.key] || 0;
+        // Score 1 sits at the left end of the line, 10 at the right end
+        bar.style.setProperty('--at', `${(Math.max(n, 1) - 1) / 9 * 100}%`);
+        bar.classList.toggle('unset', !n);
+        bar.querySelectorAll('.marks i').forEach((mark, i) => mark.classList.toggle('on', i < n));
+        bar.setAttribute('aria-valuenow', n);
+        bar.nextElementSibling.textContent = n || '–';
+      });
+      // The chart at the top of the form follows the sliders as you drag them
+      $('formRadar').innerHTML = radarSvg(scores, true);
     }
-    $('ratingPick').onclick = (e) => {
-      const n = Number(e.target.dataset.n);
-      if (!n) return;
-      currentRating = (n === currentRating) ? 0 : n; // click same star again to clear
-      drawRating();
-    };
+
+    $('scales').querySelectorAll('.scale').forEach(bar => {
+      const key = bar.dataset.key;
+      let before = 0, moved = false;
+      // Which mark (1–10) is closest to the finger or mouse
+      const scoreAt = (x) => {
+        const box = bar.querySelector('.rail').getBoundingClientRect();
+        return Math.min(10, Math.max(1, Math.round((x - box.left) / box.width * 9) + 1));
+      };
+      const set = (n) => { scores[key] = n; drawScales(); };
+      bar.onpointerdown = (e) => {
+        bar.setPointerCapture(e.pointerId);
+        before = scores[key] || 0;
+        moved = false;
+        set(scoreAt(e.clientX));
+      };
+      bar.onpointermove = (e) => {
+        if (!bar.hasPointerCapture(e.pointerId)) return;
+        const n = scoreAt(e.clientX);
+        if (n !== scores[key]) { moved = true; set(n); }
+      };
+      bar.onpointerup = () => { if (!moved && scores[key] === before) set(0); };
+      // The browser took over to scroll the form: put the score back
+      bar.onpointercancel = () => set(before);
+      bar.onkeydown = (e) => {
+        const n = scores[key] || 0;
+        const next = { ArrowRight: n + 1, ArrowUp: n + 1, ArrowLeft: n - 1, ArrowDown: n - 1, Delete: 0, Backspace: 0 }[e.key];
+        if (next === undefined) return;
+        e.preventDefault();
+        set(Math.min(10, Math.max(0, next)));
+      };
+    });
 
     // Time fields: type digits only and they fill in from the right, like a microwave.
     // "45" → 0:45, "130" → 1:30, "1030" → 10:30
@@ -687,22 +1378,51 @@
     form.addEventListener('input', (e) => {
       const el = e.target;
       if (el.classList.contains('time-input')) el.value = formatTime(el.value);
-      if (el.classList.contains('date-input')) { el.value = formatDate(el.value); checkDate(el); }
+      if (el.classList.contains('date-input')) {
+        el.value = formatDate(el.value);
+        checkDate(el);
+        // An open calendar follows a full date as you type it
+        if (!$('formCal').hidden && calField === el && isValidDate(el.value) && el.value) {
+          formCal.month = toSavedDate(el.value).slice(0, 7);
+          formCal.draw();
+        }
+      }
     });
 
-    // Add a calendar button next to each date field
-    const CAL_ICON = '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
-    document.querySelectorAll('.date-field').forEach(field => {
+    // Picking a bean you've brewed before fills in its details (roaster, origin…)
+    // from My Beans, or else from your latest brew of it. Only empty fields are filled, so nothing you typed is lost.
+    const BEAN_DETAILS = ['roaster', 'origin', 'variety', 'process', 'roastDate'];
+    form.bean.addEventListener('input', () => {
+      // Typing a name yourself unlinks the bean picked from My Beans (Save links it again if the name matches)
+      if (form.beanId.value) { form.beanId.value = ''; drawBeanPickBtn(); }
+      const past = beanNamed(form.bean.value) || latestBrewOf(form.bean.value);
+      if (!past) return;
+      BEAN_DETAILS.forEach(key => {
+        if (form[key].value || !past[key]) return;
+        form[key].value = key === 'roastDate' ? toDisplayDate(past[key]) : past[key];
+      });
+      checkDate(form.roastDate);
+    });
+
+    // Add a calendar button next to each date field. Both fields share one calendar,
+    // shown under the date row; it fills in whichever field's button was pressed.
+    let calField = null; // the date field the calendar is filling in
+    const formCal = makeCalendar($('formCal'), {
+      input: () => calField, onlyBrewDays: false, clearLabel: 'Clear',
+      onPick: () => checkDate(calField),
+    });
+    form.querySelectorAll('.date-field').forEach(field => {
       const text = field.querySelector('.date-input');
       const cal = document.createElement('span');
       cal.className = 'cal';
-      cal.innerHTML = `<button type="button" title="Pick from calendar">${CAL_ICON}</button><input type="date" tabindex="-1">`;
-      const picker = cal.querySelector('input');
+      cal.innerHTML = `<button type="button" title="Pick from calendar" aria-label="Pick from calendar" aria-controls="formCal">${CAL_ICON}</button>`;
       cal.querySelector('button').onclick = () => {
-        picker.value = isValidDate(text.value) ? toSavedDate(text.value) : '';
-        try { picker.showPicker(); } catch { picker.focus(); }
+        // Pressing the same button again closes it; the other field's button switches over
+        if (!$('formCal').hidden && calField === text) return formCal.close();
+        calField = text;
+        formCal.open();
+        $('formCal').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       };
-      picker.onchange = () => { text.value = toDisplayDate(picker.value); checkDate(text); };
       field.appendChild(cal);
     });
 
@@ -720,24 +1440,82 @@
     }
     form.dose.oninput = form.water.oninput = updateRatio;
 
+    // The photo being edited in the form: its file name, plus the shrunk image if it was just picked
+    // (not uploaded until you press Save) and a link to show that image before it's uploaded.
+    const formPhoto = { path: '', blob: null, previewUrl: '' };
+
+    function drawFormPhoto() {
+      const has = !!formPhoto.path;
+      $('photoAdd').hidden = has;
+      $('photoPreview').hidden = !has;
+      const url = formPhoto.previewUrl || (has && photoUrls.get(formPhoto.path)) || '';
+      if (url) $('photoImg').src = url;
+      else $('photoImg').removeAttribute('src');
+    }
+
+    // Throw away a picked photo that was never saved
+    function discardPickedPhoto() {
+      if (formPhoto.previewUrl) URL.revokeObjectURL(formPhoto.previewUrl);
+      formPhoto.blob = null;
+      formPhoto.previewUrl = '';
+    }
+
+    async function pickPhoto(file) {
+      if (!file) return;
+      let blob;
+      try { blob = await shrinkPhoto(file); }
+      catch { return alert("That photo couldn't be opened. Try a JPEG or PNG."); }
+      discardPickedPhoto();
+      formPhoto.blob = blob;
+      formPhoto.previewUrl = URL.createObjectURL(blob);
+      formPhoto.path = `${user.id}/${crypto.randomUUID()}.jpg`; // a fresh name, so the old photo stays until Save
+      drawFormPhoto();
+    }
+
+    $('photoAdd').onclick = $('photoChange').onclick = () => $('photoFile').click();
+    $('photoFile').onchange = (e) => { pickPhoto(e.target.files[0]); e.target.value = ''; };
+    $('photoRemove').onclick = () => { discardPickedPhoto(); formPhoto.path = ''; drawFormPhoto(); };
+    $('dlg').addEventListener('close', discardPickedPhoto);
+
+    // On a computer you can also drag a photo onto the form
+    $('photoField').ondragover = (e) => { e.preventDefault(); $('photoField').classList.add('dragging'); };
+    $('photoField').ondragleave = () => $('photoField').classList.remove('dragging');
+    $('photoField').ondrop = (e) => {
+      e.preventDefault();
+      $('photoField').classList.remove('dragging');
+      pickPhoto(e.dataTransfer.files[0]);
+    };
+
     function openForm(brew, mode) {
       form.reset();
       $('pours').innerHTML = '';
+      discardPickedPhoto();
+      // "Brew again" starts without a photo: each photo belongs to one brew
+      formPhoto.path = mode === 'edit' ? (brew.photo || '') : '';
+      drawFormPhoto();
       editingId = mode === 'edit' ? brew.id : null;
       $('dlgTitle').textContent = mode === 'edit' ? 'Edit brew' : 'New brew';
       $('deleteBtn').style.display = $('dupBtn').style.display = mode === 'edit' ? '' : 'none';
 
-      // New brews default to whichever temp unit you used last
-      const lastUnit = brews.length ? brews[brews.length - 1].tempUnit : null;
-      const data = brew || { brewDate: today(), tempUnit: lastUnit || 'C', pours: [{ t: '0:00', g: '', note: 'bloom' }] };
+      formCal.close();
+      // New brews start in °F (switching to °C converts the number)
+      const data = brew || { brewDate: today(), tempUnit: 'F', pours: [{ t: '0:00', g: '', note: 'bloom' }], ...lastGearChoice() };
       for (const el of form.elements) {
         if (el.name && el.name in data) el.value = data[el.name] ?? '';
       }
+      // Equipment dropdowns and tick boxes, filled from your Coffee Setup
+      formOrig = data;
+      form.beanId.value = data.beanId || ''; // reset() leaves hidden fields alone
+      drawBeanPickBtn();
+      GEAR_SELECTS.forEach(category => fillGearSelect(category, startingGear(data, category)));
+      fillOthers((data.others || []).map(o => o.id));
       if (mode === 'copy') form.brewDate.value = today();
       form.querySelectorAll('.date-input').forEach(el => { el.value = toDisplayDate(el.value); checkDate(el); });
       (data.pours || []).forEach(addPourRow);
-      currentRating = mode === 'copy' ? 0 : (data.rating || 0);
-      drawRating();
+      // "Brew again" starts unscored: it's a new cup to taste
+      scores = mode === 'copy' ? {} : Object.fromEntries(TASTES.map(([key]) => [key, data[key] || 0]));
+      if (mode !== 'copy') scores.overall = overallOf(data);
+      drawScales();
       updateRatio();
       $('dlg').showModal();
     }
@@ -751,33 +1529,61 @@
         const [t, g, note] = row.querySelectorAll('input');
         return { t: t.value, g: g.value, note: note.value };
       }).filter(p => p.t || p.g || p.note);
-      f.rating = currentRating;
+      ['overall', ...TASTES.map(([key]) => key)].forEach(key => f[key] = scores[key] || 0);
+      f.photo = formPhoto.path;
+      // A typed bean name that matches one in My Beans gets linked to it
+      if (!f.beanId) f.beanId = beanNamed(f.bean)?.id || '';
+      // Equipment: each brew keeps the gear's id and a copy of its name, so the brew still
+      // reads correctly if the gear is later renamed or removed from your setup
+      GEAR_SELECTS.forEach(category => {
+        const id = f[category + 'Id'];
+        const origId = formOrig[category + 'Id'] || '', origName = formOrig[category] || '';
+        const item = gear.find(g => g.id === id);
+        if (id === KEEP) { f[category] = origName; f[category + 'Id'] = origId; }
+        else if (!item) { f[category] = ''; f[category + 'Id'] = ''; }
+        else f[category] = id === origId && origName ? origName : gearLabel(item);
+      });
+      f.others = [...$('othersPick').querySelectorAll('input:checked')].map(box => {
+        const old = (formOrig.others || []).find(o => o.id === box.value);
+        const item = gear.find(g => g.id === box.value);
+        return old?.name ? old : item ? { id: item.id, name: gearLabel(item), type: item.type || '' } : null;
+      }).filter(Boolean);
       return f;
     }
 
     form.onsubmit = () => {
       const data = readForm();
-      let brew;
+      const photoBlob = formPhoto.blob;
+      if (photoBlob) {
+        // Show the picked photo on its card straight away, while it uploads
+        photoUrls.set(data.photo, formPhoto.previewUrl);
+        formPhoto.blob = null;
+        formPhoto.previewUrl = '';
+      }
+      let brew, oldPhoto = '';
       if (editingId) {
         const i = brews.findIndex(b => b.id === editingId);
+        oldPhoto = brews[i].photo || '';
         brew = brews[i] = { ...brews[i], ...data };
+        delete brew.rating; // replaced by "overall"
       } else {
         brew = { id: crypto.randomUUID(), ...data };
         brews.push(brew);
       }
       cacheBrews();
       render();
-      uploadBrews([brew]);
+      saveBrew(brew, photoBlob, oldPhoto);
     };
 
     $('deleteBtn').onclick = () => {
       if (!confirm('Delete this brew?')) return;
       const id = editingId;
+      const photo = brews.find(b => b.id === id)?.photo;
       brews = brews.filter(b => b.id !== id);
       cacheBrews();
       $('dlg').close();
       render();
-      deleteBrewOnline(id);
+      deleteBrewOnline(id, photo);
     };
 
     $('dupBtn').onclick = () => {
@@ -790,6 +1596,573 @@
     $('addPour').onclick = () => addPourRow();
     $('newBtn').onclick = () => openForm(null, 'new');
 
+    // ---------- Coffee Setup (your equipment) ----------
+    // Each item looks like { id, category, type, brand, name, url, notes, source, archived }.
+    // `type` is only used for Others (Scale, Server…). Items that past brews use are never
+    // erased: deleting one marks it `archived`, which hides it but keeps those brews linked.
+    const GEAR_CATEGORIES = [
+      // `example` fills the grey hint text in the add-equipment form: [search, brand, name]
+      { key: 'brewer', label: 'Brewer', plural: 'brewers', example: ['Hario V60', 'Hario', 'V60'] },
+      { key: 'grinder', label: 'Grinder', plural: 'grinders', example: ['Mahlkönig EK43', 'Mahlkönig', 'EK43'] },
+      { key: 'filter', label: 'Filter', plural: 'filters', example: ['V60 Paper Filters 01', 'Hario', 'V60 Paper Filters 01'] },
+      { key: 'other', label: 'Others', plural: 'other gear', example: ['Acaia Pearl', 'Acaia', 'Pearl'] },
+    ];
+    const GEAR_SELECTS = ['brewer', 'grinder', 'filter']; // the ones with a dropdown in the brew form
+    const GEAR_TYPES = ['Scale', 'Kettle', 'Server', 'Thermometer', 'Timer', 'Refractometer', 'Water', 'Cup', 'Tool'];
+    const KEEP = 'keep', ADD = 'add'; // special dropdown choices: keep the brew's old name / add new gear
+
+    // Popular equipment, used for the "Find a product" suggestions: [category, brand, name, type for Others]
+    const GEAR_CATALOG = [
+      ['brewer', 'Hario', 'V60 01'], ['brewer', 'Hario', 'V60 02'], ['brewer', 'Hario', 'Switch'],
+      ['brewer', 'Kalita', 'Wave 155'], ['brewer', 'Kalita', 'Wave 185'],
+      ['brewer', 'Origami', 'Dripper S'], ['brewer', 'Origami', 'Dripper M'],
+      ['brewer', 'Chemex', 'Classic 6-Cup'], ['brewer', 'April', 'Brewer'], ['brewer', 'Orea', 'Brewer'],
+      ['brewer', 'Kono', 'Meimon Dripper'], ['brewer', 'Cafec', 'Flower Dripper'], ['brewer', 'Clever', 'Coffee Dripper'],
+      ['brewer', 'AeroPress', 'Original'], ['brewer', 'AeroPress', 'Go'], ['brewer', 'AeroPress', 'XL'],
+      ['brewer', 'Fellow', 'Stagg [X] Dripper'], ['brewer', 'Timemore', 'Crystal Eye Dripper'], ['brewer', 'Bee House', 'Dripper'],
+      ['grinder', 'Timemore', 'Chestnut C2'], ['grinder', 'Timemore', 'Chestnut C3'], ['grinder', 'Timemore', 'Chestnut C3S'],
+      ['grinder', 'Timemore', 'Sculptor 064S'], ['grinder', 'Timemore', 'Sculptor 078'], ['grinder', 'Timemore', 'Sculptor 078S'],
+      ['grinder', 'Comandante', 'C40 MK4'],
+      ['grinder', '1Zpresso', 'JX-Pro'], ['grinder', '1Zpresso', 'K-Ultra'], ['grinder', '1Zpresso', 'ZP6 Special'], ['grinder', '1Zpresso', 'Q2'],
+      ['grinder', 'Baratza', 'Encore'], ['grinder', 'Baratza', 'Encore ESP'], ['grinder', 'Baratza', 'Virtuoso+'],
+      ['grinder', 'Fellow', 'Ode Gen 2'], ['grinder', 'Fellow', 'Opus'],
+      ['grinder', 'Hario', 'Skerton Pro'], ['grinder', 'Kinu', 'M47'], ['grinder', 'Kingrinder', 'K6'],
+      ['grinder', 'Option-O', 'Lagom P64'], ['grinder', 'Option-O', 'Lagom Mini'],
+      ['grinder', 'Niche', 'Zero'], ['grinder', 'Niche', 'Duo'], ['grinder', 'Turin', 'DF64'],
+      ['grinder', 'Mahlkönig', 'EK43'], ['grinder', 'Mahlkönig', 'X54'], ['grinder', 'Weber Workshops', 'EG-1'],
+      ['grinder', 'Wilfa', 'Uniform'], ['grinder', 'Kalita', 'Nice Cut G'], ['grinder', 'Fuji Royal', 'R-220'],
+      ['grinder', 'Eureka', 'Mignon Specialita'],
+      ['filter', 'Hario', 'V60 Paper Filters 01'], ['filter', 'Hario', 'V60 Paper Filters 02'],
+      ['filter', 'Kalita', 'Wave Filter 155'], ['filter', 'Kalita', 'Wave Filter 185'],
+      ['filter', 'Cafec', 'Abaca Paper Filter'], ['filter', 'Cafec', 'T-90 Paper Filter'],
+      ['filter', 'Sibarist', 'FAST Cone Filter'], ['filter', 'Chemex', 'Bonded Filters'], ['filter', 'April', 'Paper Filters'],
+      ['filter', 'AeroPress', 'Paper Micro-Filters'], ['filter', 'Able', 'Kone'], ['filter', 'Melitta', 'Original Filter Papers 1x4'],
+      ['other', 'Fellow', 'Stagg EKG', 'Kettle'], ['other', 'Fellow', 'Stagg EKG Pro', 'Kettle'], ['other', 'Fellow', 'Corvo EKG', 'Kettle'],
+      ['other', 'Hario', 'Buono Kettle', 'Kettle'], ['other', 'Hario', 'V60 Drip Kettle Air', 'Kettle'],
+      ['other', 'Bonavita', 'Variable Temperature Gooseneck Kettle', 'Kettle'], ['other', 'Brewista', 'Artisan Gooseneck Kettle', 'Kettle'],
+      ['other', 'Timemore', 'Fish Smart Electric Kettle', 'Kettle'], ['other', 'Cosori', 'Gooseneck Electric Kettle', 'Kettle'],
+      ['other', 'OXO', 'Adjustable Temperature Pour-Over Kettle', 'Kettle'],
+      ['other', 'Acaia', 'Pearl', 'Scale'], ['other', 'Acaia', 'Lunar', 'Scale'], ['other', 'Felicita', 'Arc', 'Scale'],
+      ['other', 'Timemore', 'Black Mirror Basic 2', 'Scale'], ['other', 'Hario', 'V60 Drip Scale', 'Scale'], ['other', 'Fellow', 'Tally Pro', 'Scale'],
+      ['other', 'Hario', 'V60 Range Server', 'Server'], ['other', 'ThermoWorks', 'Thermapen ONE', 'Thermometer'],
+      ['other', 'DiFluid', 'R2 Extract', 'Refractometer'], ['other', 'Melodrip', 'Melodrip', 'Tool'],
+      ['other', 'Third Wave Water', 'Mineral Packets', 'Water'],
+    ].map(([category, brand, name, type = '']) => ({ category, brand, name, type }));
+
+    // Makes search forgiving: "Mahlkönig V60-02" → "mahlkonigv6002" (no accents, spaces or symbols)
+    const searchKey = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    // "Hario" + "V60 02" → "Hario V60 02" (without repeating the brand if the name already starts with it)
+    function gearLabel(g) {
+      const brand = (g.brand || '').trim(), name = (g.name || '').trim();
+      return brand && !name.toLowerCase().startsWith(brand.toLowerCase()) ? `${brand} ${name}`.trim() : name || brand;
+    }
+    const othersLabel = (g) => g.type ? `${gearLabel(g)} (${g.type})` : gearLabel(g);
+    const activeGear = (category) => gear.filter(g => g.category === category && !g.archived)
+      .sort((a, b) => gearLabel(a).localeCompare(gearLabel(b)));
+    function brewsUsing(item) {
+      return brews.filter(b => item.category === 'other'
+        ? (b.others || []).some(o => o.id === item.id)
+        : b[item.category + 'Id'] === item.id);
+    }
+
+    // The Coffee Setup page: one box per category, listing your gear
+    function renderSetup() {
+      $('gearGroups').innerHTML = GEAR_CATEGORIES.map(c => {
+        const items = activeGear(c.key);
+        return `
+          <div>
+            <div class="gear-head">
+              <h2>${c.label}</h2>
+              <button type="button" class="small" data-add="${c.key}">+ Add</button>
+            </div>
+            <div class="panel">
+              ${items.length ? items.map(g => {
+                const used = brewsUsing(g).length;
+                const sub = [g.type, used ? `Used in ${used} brew${used > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ');
+                return `
+                  <button type="button" class="panel-item" data-gear-id="${escapeHtml(g.id)}">
+                    <span class="gear-name">${escapeHtml(gearLabel(g))}</span>
+                    ${sub ? `<span class="gear-sub">${escapeHtml(sub)}</span>` : ''}
+                  </button>`;
+              }).join('') : `<div class="gear-empty">No ${c.plural} yet</div>`}
+            </div>
+          </div>`;
+      }).join('');
+    }
+    $('gearGroups').onclick = (e) => {
+      const add = e.target.closest('[data-add]');
+      if (add) return openGearForm(null, add.dataset.add);
+      const row = e.target.closest('[data-gear-id]');
+      if (row) openGearForm(gear.find(g => g.id === row.dataset.gearId));
+    };
+
+    // ----- The add/edit equipment popup -----
+    const gearForm = $('gearForm');
+    const gearField = (name) => gearForm.elements.namedItem(name);
+    let editingGearId = null;
+    let gearSource = 'manual'; // becomes 'catalog' when a suggestion is picked
+    let gearDone = null;       // when opened from the brew form: told about the new gear (or null if none)
+
+    $('gearCategory').innerHTML = GEAR_CATEGORIES.map(c => `<option value="${c.key}">${c.label}</option>`).join('');
+    $('gearTypeList').innerHTML = GEAR_TYPES.map(t => `<option>${t}</option>`).join('');
+
+    // "Type" (Scale, Server…) is only asked for Others, and the grey examples match the category
+    function updateGearType() {
+      const c = GEAR_CATEGORIES.find(c => c.key === $('gearCategory').value);
+      $('gearTypeField').hidden = c.key !== 'other';
+      const [search, brand, name] = c.example;
+      $('gearQ').placeholder = `e.g. ${search}`;
+      gearField('brand').placeholder = `e.g. ${brand}`;
+      gearField('name').placeholder = `e.g. ${name}`;
+    }
+    $('gearCategory').onchange = () => { updateGearType(); drawGearResults(); };
+
+    // `onDone` is for adding gear from the brew form: the category is fixed, and
+    // onDone(newGear) is called once, on Save (or with null if the popup is closed without saving)
+    function openGearForm(item, category, onDone = null) {
+      gearForm.reset();
+      gearDone = onDone;
+      editingGearId = item ? item.id : null;
+      gearSource = item?.source || 'manual';
+      $('gearTitle').textContent = item ? 'Edit equipment' : 'Add equipment';
+      $('gearDeleteBtn').hidden = !item;
+      $('gearSearch').hidden = !!item; // searching is for adding new gear
+      const data = item || { category };
+      for (const el of gearForm.elements) {
+        if (el.name && el.name in data) el.value = data[el.name] ?? '';
+      }
+      // Gear that past brews use stays in its category, so those brews stay linked correctly
+      $('gearCategory').disabled = !!onDone || (!!item && brewsUsing(item).length > 0);
+      updateGearType();
+      drawGearResults();
+      $('gearDlg').showModal();
+    }
+
+    // Suggestions from GEAR_CATALOG as you type; every word typed must appear.
+    // Accents, spaces and symbols are ignored, so "mahlkonig" or "v60-02" still match.
+    // Matches in the chosen category come first.
+    function drawGearResults() {
+      const words = $('gearQ').value.split(/\s+/).map(searchKey).filter(Boolean);
+      $('gearResults').hidden = !words.length;
+      if (!words.length) return;
+      const category = $('gearCategory').value;
+      const fixed = $('gearCategory').disabled; // only this category's products can be picked
+      const matches = GEAR_CATALOG
+        .map((p, i) => ({ ...p, i }))
+        .filter(p => (!fixed || p.category === category)
+          && words.every(w => searchKey(`${p.brand} ${p.name} ${p.type}`).includes(w)))
+        .sort((a, b) => (b.category === category) - (a.category === category))
+        .slice(0, 8);
+      $('gearResults').innerHTML = matches.length
+        ? matches.map(p => `
+            <button type="button" class="gear-result" data-i="${p.i}">
+              <span>${escapeHtml(gearLabel(p))}</span>
+              <span class="gear-sub">${escapeHtml(p.type || GEAR_CATEGORIES.find(c => c.key === p.category).label)}</span>
+            </button>`).join('')
+        : '<div class="gear-empty">No matches. Fill in the details below instead.</div>';
+    }
+
+    // Picking a suggestion fills in the form; everything stays editable
+    function pickCatalogItem(p) {
+      gearField('category').value = p.category;
+      gearField('brand').value = p.brand;
+      gearField('name').value = p.name;
+      gearField('type').value = p.type;
+      gearSource = 'catalog';
+      $('gearQ').value = '';
+      updateGearType();
+      drawGearResults();
+    }
+
+    $('gearQ').oninput = drawGearResults;
+    // Enter picks the top suggestion instead of saving the form
+    $('gearQ').onkeydown = (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      $('gearResults').querySelector('[data-i]')?.click();
+    };
+    $('gearResults').onclick = (e) => {
+      const btn = e.target.closest('[data-i]');
+      if (btn) pickCatalogItem(GEAR_CATALOG[btn.dataset.i]);
+    };
+
+    // After renaming gear, offer to change the name saved on past brews too
+    function renameInBrews(before, item) {
+      const name = gearLabel(item);
+      if (name === gearLabel(before) && (item.type || '') === (before.type || '')) return;
+      const used = brewsUsing(item);
+      if (!used.length || !confirm(`Also change the name on ${used.length} past brew(s) to "${name}"?`)) return;
+      used.forEach(b => {
+        if (item.category === 'other') b.others = b.others.map(o => o.id === item.id ? { ...o, name, type: item.type || '' } : o);
+        else b[item.category] = name;
+      });
+      cacheBrews();
+      uploadBrews(used);
+    }
+
+    gearForm.onsubmit = () => {
+      const f = Object.fromEntries(new FormData(gearForm));
+      for (const k in f) f[k] = f[k].trim();
+      let item;
+      if (editingGearId) {
+        const i = gear.findIndex(g => g.id === editingGearId);
+        if (i < 0) return;
+        const before = gear[i];
+        item = gear[i] = { ...before, ...f };
+        if (item.category !== 'other') item.type = '';
+        renameInBrews(before, item);
+      } else {
+        // The category is read directly: when it's fixed (disabled), the form leaves it out
+        item = { id: crypto.randomUUID(), ...f, category: $('gearCategory').value, source: gearSource, archived: false };
+        if (item.category !== 'other') item.type = '';
+        gear.push(item);
+      }
+      cacheGear();
+      render();
+      uploadGear([item]);
+      finishGearForm(editingGearId ? null : item);
+    };
+
+    $('gearDeleteBtn').onclick = () => {
+      const item = gear.find(g => g.id === editingGearId);
+      if (!item) return;
+      const used = brewsUsing(item).length;
+      const question = used
+        ? `Remove "${gearLabel(item)}" from your setup? The ${used} brew(s) that used it will still show it.`
+        : `Delete "${gearLabel(item)}"?`;
+      if (!confirm(question)) return;
+      $('gearDlg').close();
+      if (used) item.archived = true; // hidden, but kept so old brews stay linked
+      else gear = gear.filter(g => g !== item);
+      cacheGear();
+      render();
+      if (used) uploadGear([item]);
+      else deleteRowOnline('equipment', item.id);
+    };
+    function finishGearForm(item) {
+      const done = gearDone;
+      gearDone = null;
+      if (done) done(item);
+    }
+    $('gearCloseBtn').onclick = () => { finishGearForm(null); $('gearDlg').close(); };
+    $('gearDlg').addEventListener('close', () => finishGearForm(null)); // e.g. closed with Esc
+
+    // ----- Equipment in the brew form -----
+    const option = (value, text) => `<option value="${escapeHtml(value)}">${escapeHtml(text)}</option>`;
+
+    // New brews start with the gear from your last brew (if it's still in your setup)
+    function lastGearChoice() {
+      const last = brews[brews.length - 1] || {};
+      const active = (id) => gear.some(g => g.id === id && !g.archived);
+      const choice = { others: (last.others || []).filter(o => active(o.id)).map(o => ({ id: o.id })) };
+      GEAR_SELECTS.forEach(category => {
+        if (active(last[category + 'Id'])) choice[category + 'Id'] = last[category + 'Id'];
+      });
+      return choice;
+    }
+
+    // Which dropdown choice a brew starts with. Brews from before Coffee Setup only
+    // have a typed name: pick the gear with that name if there is one, else keep the name.
+    function startingGear(data, category) {
+      if (data[category + 'Id']) return data[category + 'Id'];
+      if (!data[category]) return '';
+      return activeGear(category).find(g => gearLabel(g) === data[category])?.id || KEEP;
+    }
+
+    // Fill one equipment dropdown and choose `selected` (a gear id, KEEP or '').
+    // If this brew's gear is no longer in your setup, it still gets a choice, so saving doesn't lose it.
+    function fillGearSelect(category, selected) {
+      const c = GEAR_CATEGORIES.find(c => c.key === category);
+      const sel = form.elements.namedItem(category + 'Id');
+      const items = activeGear(category);
+      const origId = formOrig[category + 'Id'] || '', origName = formOrig[category] || '';
+      const old = gear.find(g => g.id === origId);
+      let extra = '';
+      if (!items.some(g => g.id === origId)) {
+        if (old) extra = option(old.id, `${origName || gearLabel(old)} (removed from setup)`);
+        else if (origName) extra = option(KEEP, `${origName} (not in your setup)`);
+      }
+      sel.innerHTML = option('', items.length ? 'None' : `No ${c.plural} yet`)
+        + items.map(g => option(g.id, gearLabel(g))).join('')
+        + extra
+        + option(ADD, `+ Add a ${c.label.toLowerCase()}…`);
+      sel.value = selected;
+      if (sel.selectedIndex < 0) sel.value = selected === origId && origName ? KEEP : '';
+      sel.dataset.value = sel.value; // to go back to if adding new gear is cancelled
+    }
+
+    // "+ Add…" in the brew form opens the add-equipment popup on top; the new gear is then chosen
+    GEAR_SELECTS.forEach(category => {
+      const sel = form.elements.namedItem(category + 'Id');
+      sel.onchange = () => {
+        if (sel.value !== ADD) { sel.dataset.value = sel.value; return; }
+        const before = sel.dataset.value;
+        sel.value = before; // until the new gear is saved
+        openGearForm(null, category, item => fillGearSelect(category, item ? item.id : before));
+      };
+    });
+
+    // The Others tick boxes; `checked` is a list of gear ids
+    function fillOthers(checked) {
+      const items = activeGear('other');
+      const gone = (formOrig.others || []).filter(o => o.name && !items.some(g => g.id === o.id));
+      const box = (id, text) =>
+        `<label class="check"><input type="checkbox" value="${escapeHtml(id)}"${checked.includes(id) ? ' checked' : ''}>${escapeHtml(text)}</label>`;
+      $('othersPick').innerHTML = (items.map(g => box(g.id, othersLabel(g))).join('')
+        + gone.map(o => box(o.id, `${o.name} (removed from setup)`)).join(''))
+        || '<span class="gear-sub">No other gear yet</span>';
+    }
+    $('addOther').onclick = () => {
+      const checked = [...$('othersPick').querySelectorAll('input:checked')].map(box => box.value);
+      openGearForm(null, 'other', item => { if (item) fillOthers([...checked, item.id]); });
+    };
+
+    // ---------- My Beans ----------
+    // Each bean looks like { id, name, roaster, origin, variety, process, roastDate, notes, archived }.
+    // A brew keeps the bean's id (`beanId`) plus its own copy of the details, like it does for gear.
+    // Beans that past brews use are never erased: deleting one marks it `archived`.
+    const BEAN_FIELDS = ['name', ...BEAN_DETAILS]; // copied onto a brew (`name` becomes the brew's `bean`)
+    const nameKey = (s) => (s || '').trim().toLowerCase();
+    const activeBeans = () => beans.filter(b => !b.archived)
+      .sort((a, b) => (b.roastDate || '').localeCompare(a.roastDate || '') || (a.name || '').localeCompare(b.name || ''));
+    const brewsWithBean = (bean) => brews.filter(b => b.beanId === bean.id);
+    // The bean in My Beans with this name (ignoring case and extra spaces), if any
+    const beanNamed = (name) => nameKey(name) ? activeBeans().find(b => nameKey(b.name) === nameKey(name)) : null;
+
+    // Whole days from a "YYYY-MM-DD" date to today
+    function daysSince(date) {
+      if (!date) return null;
+      return Math.round((new Date(today() + 'T00:00:00') - new Date(date + 'T00:00:00')) / 86400000);
+    }
+    // "Roaster · Origin · 12 days since roast"
+    function beanSub(bean) {
+      const days = daysSince(bean.roastDate);
+      const age = days === null ? '' : days < 0 ? 'Not roasted yet' : `${days} day${days === 1 ? '' : 's'} since roast`;
+      return [bean.roaster, bean.origin, age].filter(Boolean).join(' · ');
+    }
+
+    // Brews with a bean name that isn't linked to My Beans yet, grouped by name
+    function unlinkedBeanNames() {
+      const names = new Map();
+      brews.forEach(b => {
+        if (b.beanId || !nameKey(b.bean)) return;
+        const key = nameKey(b.bean);
+        if (!names.has(key)) names.set(key, []);
+        names.get(key).push(b);
+      });
+      return names;
+    }
+
+    // The My Beans page: newest roast first
+    function renderBeans() {
+      const items = activeBeans();
+      $('beanItems').innerHTML = items.length ? items.map(bean => {
+        const used = brewsWithBean(bean).length;
+        const sub = [beanSub(bean), used ? `Used in ${used} brew${used > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ');
+        return `
+          <button type="button" class="panel-item" data-bean-id="${escapeHtml(bean.id)}">
+            <span class="gear-name">${escapeHtml(bean.name)}</span>
+            ${sub ? `<span class="gear-sub">${escapeHtml(sub)}</span>` : ''}
+          </button>`;
+      }).join('') : '<div class="gear-empty">No beans yet</div>';
+      $('importBeansBtn').hidden = !unlinkedBeanNames().size;
+    }
+    $('beanItems').onclick = (e) => {
+      const row = e.target.closest('[data-bean-id]');
+      if (row) openBeanForm(beans.find(b => b.id === row.dataset.beanId));
+    };
+    $('addBeanBtn').onclick = () => openBeanForm(null);
+
+    // "Add from past brews": one bean per name used in your brews, with the details
+    // from your latest brew of it. Names already in My Beans are just linked.
+    $('importBeansBtn').onclick = () => {
+      const plan = [...unlinkedBeanNames()].map(([key, list]) => {
+        let bean = beanNamed(key), isNew = false;
+        if (!bean) {
+          const past = latestBrewOf(key);
+          bean = { id: crypto.randomUUID(), name: past.bean.trim(), notes: '', archived: false };
+          BEAN_DETAILS.forEach(k => bean[k] = past[k] || '');
+          isNew = true;
+        }
+        return { bean, isNew, list };
+      });
+      const added = plan.filter(p => p.isNew).map(p => p.bean);
+      const linked = plan.flatMap(p => p.list);
+      if (!linked.length) return;
+      if (!confirm(`Add ${added.length} bean(s) to My Beans and link ${linked.length} past brew(s) to them?`)) return;
+      plan.forEach(p => p.list.forEach(b => b.beanId = p.bean.id));
+      beans.push(...added);
+      cacheBeans();
+      cacheBrews();
+      render();
+      if (added.length) uploadBeans(added);
+      uploadBrews(linked);
+    };
+
+    // ----- The add/edit bean popup -----
+    const beanForm = $('beanForm');
+    const beanField = (name) => beanForm.elements.namedItem(name);
+    let editingBeanId = null;
+    let beanDone = null; // when opened from the brew form: told about the new bean (or null if none)
+
+    // The roast date gets its own calendar, like the brew form's date fields
+    const beanCal = makeCalendar($('beanCal'), {
+      input: () => beanField('roastDate'), onlyBrewDays: false, clearLabel: 'Clear',
+      onPick: () => checkDate(beanField('roastDate')),
+    });
+    beanForm.querySelectorAll('.date-field').forEach(field => {
+      const cal = document.createElement('span');
+      cal.className = 'cal';
+      cal.innerHTML = `<button type="button" title="Pick from calendar" aria-label="Pick from calendar" aria-controls="beanCal">${CAL_ICON}</button>`;
+      cal.querySelector('button').onclick = () => $('beanCal').hidden ? beanCal.open() : beanCal.close();
+      field.appendChild(cal);
+    });
+    beanForm.addEventListener('input', (e) => {
+      if (!e.target.classList.contains('date-input')) return;
+      e.target.value = formatDate(e.target.value);
+      checkDate(e.target);
+    });
+
+    // `onDone` is for adding a bean from the brew form: onDone(newBean) is called once,
+    // on Save (or with null if the popup is closed without saving)
+    function openBeanForm(item, onDone = null) {
+      beanForm.reset();
+      beanDone = onDone;
+      editingBeanId = item ? item.id : null;
+      $('beanTitle').textContent = item ? 'Edit bean' : 'Add bean';
+      $('beanDeleteBtn').hidden = !item;
+      const data = item || {};
+      for (const el of beanForm.elements) {
+        if (el.name && el.name in data) el.value = data[el.name] ?? '';
+      }
+      beanField('roastDate').value = toDisplayDate(beanField('roastDate').value);
+      checkDate(beanField('roastDate'));
+      beanCal.close();
+      $('beanDlg').showModal();
+    }
+
+    // After changing a bean, offer to change the copy saved on past brews too
+    function updateBeanInBrews(before, item) {
+      if (BEAN_FIELDS.every(k => (before[k] || '') === (item[k] || ''))) return;
+      const used = brewsWithBean(item);
+      if (!used.length || !confirm(`Also update the bean details on ${used.length} past brew(s)?`)) return;
+      used.forEach(b => {
+        b.bean = item.name;
+        BEAN_DETAILS.forEach(k => b[k] = item[k] || '');
+      });
+      cacheBrews();
+      uploadBrews(used);
+    }
+
+    beanForm.onsubmit = () => {
+      const f = Object.fromEntries(new FormData(beanForm));
+      for (const k in f) f[k] = f[k].trim();
+      f.roastDate = toSavedDate(f.roastDate);
+      let item;
+      if (editingBeanId) {
+        const i = beans.findIndex(b => b.id === editingBeanId);
+        if (i < 0) return;
+        const before = beans[i];
+        item = beans[i] = { ...before, ...f };
+        updateBeanInBrews(before, item);
+      } else {
+        item = { id: crypto.randomUUID(), ...f, archived: false };
+        beans.push(item);
+      }
+      cacheBeans();
+      render();
+      uploadBeans([item]);
+      finishBeanForm(editingBeanId ? null : item);
+    };
+
+    $('beanDeleteBtn').onclick = () => {
+      const item = beans.find(b => b.id === editingBeanId);
+      if (!item) return;
+      const used = brewsWithBean(item).length;
+      const question = used
+        ? `Remove "${item.name}" from My Beans? The ${used} brew(s) that used it will still show it.`
+        : `Delete "${item.name}"?`;
+      if (!confirm(question)) return;
+      $('beanDlg').close();
+      if (used) item.archived = true; // hidden, but kept so old brews stay linked
+      else beans = beans.filter(b => b !== item);
+      cacheBeans();
+      render();
+      if (used) uploadBeans([item]);
+      else deleteRowOnline('beans', item.id);
+    };
+    function finishBeanForm(item) {
+      const done = beanDone;
+      beanDone = null;
+      if (done) done(item);
+    }
+    $('beanCloseBtn').onclick = () => { finishBeanForm(null); $('beanDlg').close(); };
+    $('beanDlg').addEventListener('close', () => finishBeanForm(null)); // e.g. closed with Esc
+
+    // ----- Choosing a bean in the brew form -----
+    // The button shows which bean is linked
+    function drawBeanPickBtn() {
+      const bean = beans.find(b => b.id === form.beanId.value);
+      $('beanPickBtn').textContent = bean
+        ? `My Beans: ${bean.name}${bean.archived ? ' (removed)' : ''} ▾`
+        : 'Choose from My Beans';
+    }
+
+    // Fills the Coffee fields from the bean (replacing what's there) and links it
+    function pickBean(bean) {
+      form.beanId.value = bean ? bean.id : '';
+      if (bean) {
+        form.bean.value = bean.name;
+        BEAN_DETAILS.forEach(k => form[k].value = k === 'roastDate' ? toDisplayDate(bean[k]) : bean[k] || '');
+        checkDate(form.roastDate);
+      }
+      drawBeanPickBtn();
+    }
+
+    // Your beans, narrowed by the search box (accents, spaces and symbols are ignored)
+    function drawBeanPicks() {
+      const words = $('beanPickQ').value.split(/\s+/).map(searchKey).filter(Boolean);
+      const matches = activeBeans().filter(b =>
+        words.every(w => searchKey(`${b.name} ${b.roaster} ${b.origin} ${b.variety} ${b.process}`).includes(w)));
+      $('beanPickList').innerHTML = matches.length
+        ? matches.map(b => {
+            const sub = beanSub(b);
+            return `
+              <button type="button" class="gear-result${b.id === form.beanId.value ? ' current' : ''}" data-bean-id="${escapeHtml(b.id)}">
+                <span class="gear-name">${escapeHtml(b.name)}</span>
+                ${sub ? `<span class="gear-sub">${escapeHtml(sub)}</span>` : ''}
+              </button>`;
+          }).join('')
+        : `<div class="gear-empty">${beans.some(b => !b.archived) ? 'No matches' : 'No beans yet. Add one below.'}</div>`;
+    }
+
+    $('beanPickBtn').onclick = () => {
+      $('beanPickQ').value = '';
+      drawBeanPicks();
+      $('beanPickDlg').showModal();
+    };
+    $('beanPickQ').oninput = drawBeanPicks;
+    // Enter picks the top bean
+    $('beanPickQ').onkeydown = (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      $('beanPickList').querySelector('[data-bean-id]')?.click();
+    };
+    $('beanPickList').onclick = (e) => {
+      const btn = e.target.closest('[data-bean-id]');
+      if (!btn) return;
+      pickBean(beans.find(b => b.id === btn.dataset.beanId));
+      $('beanPickDlg').close();
+    };
+    $('beanPickNone').onclick = () => { pickBean(null); $('beanPickDlg').close(); };
+    $('beanPickCloseBtn').onclick = () => $('beanPickDlg').close();
+    // "+ Add a new bean" opens the bean form on top; the new bean is then picked
+    $('beanPickNew').onclick = () => {
+      $('beanPickDlg').close();
+      openBeanForm(null, item => { if (item) pickBean(item); });
+    };
+
     // ---------- Floating + button (phones) ----------
     function setFabOpen(open) {
       $('fab').classList.toggle('open', open);
@@ -800,14 +2173,52 @@
     $('fabBtn').onclick = () => setFabOpen(!$('fab').classList.contains('open'));
     $('fabNew').onclick = () => { setFabOpen(false); openForm(null, 'new'); };
     $('fabImport').onclick = () => { setFabOpen(false); $('importFile').click(); };
-    // Tapping anywhere else, or pressing Escape, closes the menu
-    document.addEventListener('click', (e) => { if (!$('fab').contains(e.target)) setFabOpen(false); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setFabOpen(false); });
+
+    // ---------- Search & filter panel ----------
+    function setFiltersOpen(open) {
+      $('filterPanel').classList.toggle('open', open);
+      $('filterPanel').inert = !open; // while folded away, its fields can't be tabbed into
+      $('filterBtn').setAttribute('aria-expanded', open);
+      // With a mouse, jump straight to the search box (skipped on phones so the keyboard doesn't pop up)
+      if (open && matchMedia('(pointer: fine)').matches) $('q').focus({ preventScroll: true });
+    }
+    $('filterBtn').onclick = () => setFiltersOpen(!$('filterPanel').classList.contains('open'));
+
+    // ---------- Pages & bottom navigation bar ----------
+    // The page you're on is kept in the address (#log, #beans, #setup, #account), so the back
+    // button and reloading the page work as you'd expect. Anything else shows the Brew Log.
+    const PAGES = ['log', 'beans', 'setup', 'account'];
+    const scrollPositions = {};
+    let currentPage = null;
+
+    function showPage() {
+      const hash = location.hash.slice(1);
+      const page = PAGES.includes(hash) ? hash : 'log';
+      if (currentPage) scrollPositions[currentPage] = scrollY;
+      PAGES.forEach(p => {
+        $(`page-${p}`).hidden = p !== page;
+        if (p === page) $(`tab-${p}`).setAttribute('aria-current', 'page');
+        else $(`tab-${p}`).removeAttribute('aria-current');
+      });
+      setFabOpen(false);
+      // Come back to where you were on each page (e.g. halfway down the brew list)
+      if (page !== currentPage) scrollTo(0, scrollPositions[page] || 0);
+      currentPage = page;
+    }
+    window.addEventListener('hashchange', showPage);
+
+    // Tapping anywhere else, or pressing Escape, closes the + menu
+    document.addEventListener('click', (e) => {
+      if (!$('fab').contains(e.target)) setFabOpen(false);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') setFabOpen(false);
+    });
     $('list').onclick = (e) => {
       const item = e.target.closest('[data-id]');
       if (item) openForm(brews.find(b => b.id === item.dataset.id), 'edit');
     };
-    ['q', 'fBrewer', 'fRating', 'sort'].forEach(id => $(id).oninput = render);
+    ['q', 'sort'].forEach(id => $(id).oninput = render);
 
     // ---------- Backup: export / import ----------
     $('exportBtn').onclick = () => {
