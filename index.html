@@ -127,14 +127,32 @@
     }
     .panel-item:hover, .panel-item:focus-visible { background: var(--accent-soft); }
 
-    /* Coffee Setup page: placeholder until the feature is built */
-    .placeholder {
-      max-width: 480px; margin-top: 20px; padding: 40px 24px; text-align: center; color: var(--muted);
-      background: var(--card); border: 1px dashed var(--line); border-radius: 12px;
+    /* Coffee Setup page: one box per category (Brewer, Grinder…), side by side on wide screens */
+    .gear-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-top: 20px; }
+    .gear-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .gear-head h2 { margin: 0; font-size: 1.05rem; }
+    .gear-groups .panel { max-width: none; margin-top: 8px; padding: 6px; }
+    .gear-name { display: block; font-weight: 600; overflow-wrap: anywhere; }
+    .gear-sub { color: var(--muted); font-size: .8rem; }
+    .panel-item .gear-sub { display: block; }
+    .gear-empty { padding: 10px; color: var(--muted); font-size: .9rem; }
+
+    /* Equipment popup: product suggestions under the search box */
+    #gearDlg { width: min(480px, calc(100% - 32px)); }
+    .gear-search { margin-bottom: 16px; }
+    .gear-results { margin-top: 6px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+    .gear-result {
+      display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+      width: 100%; text-align: left; border: none; border-radius: 0; background: none; padding: 8px 10px;
     }
-    .placeholder svg { width: 40px; height: 40px; stroke: var(--accent); fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-    .placeholder h2 { margin: 8px 0 4px; font-size: 1.05rem; color: var(--text); }
-    .placeholder p { margin: 0; font-size: .9rem; }
+    .gear-result + .gear-result { border-top: 1px solid var(--line); }
+    .gear-result:hover, .gear-result:focus-visible { background: var(--accent-soft); }
+    .hint { margin: 6px 0 0; color: var(--muted); font-size: .8rem; }
+
+    /* "Others" tick boxes in the brew form */
+    .checks { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+    .check { display: flex; align-items: center; gap: 6px; margin: 0; font-size: .95rem; color: var(--text); }
+    .check input { width: auto; }
 
     /* Bottom navigation bar: always visible, sits above the phone's home-swipe area */
     .tabbar {
@@ -355,14 +373,10 @@
     </div>
   </section>
 
-  <!-- Page 2: Coffee Setup (placeholder; your equipment will be managed here later) -->
+  <!-- Page 2: Coffee Setup. Your equipment, one box per category; filled in by renderSetup() -->
   <section class="wrap" id="page-setup" hidden>
     <header><h1>Coffee Setup</h1></header>
-    <div class="placeholder">
-      <svg viewBox="0 0 24 24"><path d="M4 6h16l-5 8H9z"/><path d="M10 14v2h4v-2M6 20h12"/></svg>
-      <h2>Coming soon</h2>
-      <p>Save your grinders, drippers, kettles and other gear here, so you can pick them quickly when logging a brew.</p>
-    </div>
+    <div class="gear-groups" id="gearGroups"></div>
   </section>
 
   <!-- Page 3: Account. To add a feature, add another .panel-section, or a .panel-item button to the actions list -->
@@ -436,11 +450,6 @@
             <div><label>Ratio</label><div class="ratio" id="ratioOut">—</div></div>
           </div>
           <div class="row">
-            <div><label>Brewer</label><input name="brewer" list="brewerList" placeholder="V60, Kalita…"></div>
-            <div><label>Grinder</label><input name="grinder" list="grinderList"></div>
-            <div><label>Grind setting</label><input name="grind"></div>
-          </div>
-          <div class="row">
             <div>
               <label>Water temp</label>
               <div class="inline">
@@ -453,8 +462,24 @@
             </div>
             <div><label>Total time</label><input name="time" class="time-input" inputmode="numeric" placeholder="type 300 → 3:00"></div>
           </div>
-          <datalist id="brewerList"></datalist>
-          <datalist id="grinderList"></datalist>
+        </fieldset>
+
+        <fieldset>
+          <legend>Equipment</legend>
+          <!-- Choices come from Coffee Setup; filled in by fillGearSelect() -->
+          <div class="row">
+            <div><label>Brewer</label><select name="brewerId"></select></div>
+            <div><label>Filter</label><select name="filterId"></select></div>
+          </div>
+          <div class="row">
+            <div><label>Grinder</label><select name="grinderId"></select></div>
+            <div><label>Grind setting</label><input name="grind"></div>
+          </div>
+          <label>Others</label>
+          <div class="checks">
+            <span class="checks" id="othersPick"></span>
+            <button type="button" class="small" id="addOther">+ Add other gear</button>
+          </div>
         </fieldset>
 
         <fieldset>
@@ -504,6 +529,46 @@
     </form>
   </dialog>
 
+  <!-- The add/edit equipment form (Coffee Setup), shown as a popup -->
+  <dialog id="gearDlg">
+    <form id="gearForm" method="dialog">
+      <div class="dlg-head">
+        <h2 id="gearTitle">Add equipment</h2>
+        <button type="button" class="small" id="gearCloseBtn">✕</button>
+      </div>
+
+      <div class="dlg-body">
+        <div class="gear-search" id="gearSearch">
+          <label for="gearQ">Find a product</label>
+          <!-- No name, so it isn't saved with the form -->
+          <input id="gearQ" placeholder="e.g. Timemore Sculptor 078S" autocomplete="off">
+          <div class="gear-results" id="gearResults" hidden></div>
+          <p class="hint">Not in the list? Just fill in the details below.</p>
+        </div>
+        <div class="row">
+          <div><label>Category</label><select name="category" id="gearCategory"></select></div>
+          <div id="gearTypeField"><label>Type</label><input name="type" list="gearTypeList" placeholder="Scale, server, kettle…" autocomplete="off"></div>
+        </div>
+        <div class="row">
+          <div><label>Brand</label><input name="brand" placeholder="e.g. Hario"></div>
+          <div><label>Name / model</label><input name="name" required placeholder="e.g. V60 02"></div>
+        </div>
+        <div class="row">
+          <div><label>Product link</label><input name="url" type="url" placeholder="https://…"></div>
+        </div>
+        <div><label>Notes</label><textarea name="notes" placeholder="Burr set, size, colour…"></textarea></div>
+        <datalist id="gearTypeList"></datalist>
+      </div>
+
+      <div class="dlg-foot">
+        <div class="toolbar">
+          <button type="button" class="danger" id="gearDeleteBtn">Delete</button>
+        </div>
+        <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- ============================================================
        BEHAVIOR (JavaScript): what happens when you click things
        ============================================================ -->
@@ -524,15 +589,20 @@
 
     let user = null;
     let brews = [];
+    let gear = []; // your equipment from Coffee Setup
 
-    // A copy of your brews is also kept in this browser, so the app opens instantly
+    // A copy of your brews and equipment is also kept in this browser, so the app opens instantly
     const cacheKey = () => `pourover-log-cache-${user.id}`;
-    function loadCache() {
-      try { return JSON.parse(localStorage.getItem(cacheKey())) || []; }
+    const gearCacheKey = () => `pourover-log-gear-${user.id}`;
+    function loadCache(key) {
+      try { return JSON.parse(localStorage.getItem(key)) || []; }
       catch { return []; }
     }
     function cacheBrews() {
       try { localStorage.setItem(cacheKey(), JSON.stringify(brews)); } catch {}
+    }
+    function cacheGear() {
+      try { localStorage.setItem(gearCacheKey(), JSON.stringify(gear)); } catch {}
     }
 
     function setStatus(text, isError = false) {
@@ -542,27 +612,59 @@
       $('tab-account').classList.toggle('has-badge', isError);
     }
 
-    // ---------- Reading & writing brews online ----------
-    async function fetchBrews() {
+    // ---------- Reading & writing brews and equipment online ----------
+    // Both tables keep each item's details in a `data` column, next to its id
+    async function fetchAll() {
       setStatus('Syncing…');
-      const { data, error } = await db.from('brews').select('id, data');
-      if (error) return setStatus('Offline: showing the last synced copy', true);
-      brews = data.map(row => ({ ...row.data, id: row.id }));
+      const [b, g] = await Promise.all([
+        db.from('brews').select('id, data'),
+        db.from('equipment').select('id, data'),
+      ]);
+      if (b.error) return setStatus('Offline: showing the last synced copy', true);
+      brews = b.data.map(row => ({ ...row.data, id: row.id }));
       cacheBrews();
+      if (!g.error) {
+        gear = g.data.map(row => ({ ...row.data, id: row.id }));
+        moveKettlesToOthers();
+        cacheGear();
+      }
       render();
-      setStatus('Synced');
+      setStatus(g.error ? 'Coffee Setup not synced: check your connection' : 'Synced', !!g.error);
     }
 
-    async function uploadBrews(list) {
+    async function uploadRows(table, list) {
       setStatus('Saving…');
       const rows = list.map(({ id, ...data }) => ({ id, data, updated_at: new Date().toISOString() }));
-      const { error } = await db.from('brews').upsert(rows);
+      const { error } = await db.from(table).upsert(rows);
       if (error) {
         setStatus('Not saved: check your connection', true);
         return false;
       }
       setStatus('Synced');
       return true;
+    }
+    // Kettles used to be their own category; now they're Others with the type "Kettle".
+    // Moves any saved the old way (gear and brews), and saves the moved ones.
+    function moveKettlesToOthers() {
+      const oldGear = gear.filter(g => g.category === 'kettle');
+      oldGear.forEach(g => { g.category = 'other'; g.type = 'Kettle'; });
+      const oldBrews = brews.filter(b => b.kettle || b.kettleId);
+      oldBrews.forEach(b => {
+        if (b.kettleId) b.others = [...(b.others || []), { id: b.kettleId, name: b.kettle || '', type: 'Kettle' }];
+        delete b.kettle;
+        delete b.kettleId;
+      });
+      if (oldBrews.length) { cacheBrews(); uploadBrews(oldBrews); }
+      if (oldGear.length) uploadGear(oldGear);
+    }
+
+    function uploadBrews(list) { return uploadRows('brews', list); }
+    function uploadGear(list) { return uploadRows('equipment', list); }
+
+    async function deleteGearOnline(id) {
+      setStatus('Saving…');
+      const { error } = await db.from('equipment').delete().eq('id', id);
+      setStatus(error ? 'Delete failed: check your connection' : 'Synced', !!error);
     }
 
     async function deleteBrewOnline(id, photo) {
@@ -671,16 +773,18 @@
       $('appView').hidden = false;
       $('userEmail').textContent = user.email;
       showPage();
-      brews = loadCache();
+      brews = loadCache(cacheKey());
+      gear = loadCache(gearCacheKey());
       render();
       await offerLocalUpload();
-      await fetchBrews();
+      await fetchAll();
     }
 
     function showSignedOut() {
       $('appView').hidden = true;
       $('authView').hidden = false;
       brews = [];
+      gear = [];
       photoUrls.clear();
       // Start the next sign-in on the Brew Log page
       if (location.hash) history.replaceState(null, '', location.pathname + location.search);
@@ -723,13 +827,16 @@
     };
 
     $('logoutBtn').onclick = async () => {
-      try { localStorage.removeItem(cacheKey()); } catch {}
+      try {
+        localStorage.removeItem(cacheKey());
+        localStorage.removeItem(gearCacheKey());
+      } catch {}
       await db.auth.signOut();
     };
 
     // When you come back to the app (e.g. switch tabs or reopen it on your phone), grab the latest brews
     document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && user) fetchBrews();
+      if (!document.hidden && user) fetchAll();
     });
 
     // Coffee-growing countries, used for the Origin suggestions
@@ -789,7 +896,8 @@
       $('filterBtn').classList.toggle('has-badge', !!(q || brewer || minRating));
 
       let shown = brews.filter(b => {
-        const haystack = [b.bean, b.roaster, b.origin, b.variety, b.process, b.brewer, b.grinder, b.notes].join(' ').toLowerCase();
+        const haystack = [b.bean, b.roaster, b.origin, b.variety, b.process, b.brewer, b.grinder, b.filter,
+          ...(b.others || []).map(o => o.name), b.notes].join(' ').toLowerCase();
         return (!q || haystack.includes(q))
           && (!brewer || b.brewer === brewer)
           && (b.rating || 0) >= minRating;
@@ -859,23 +967,22 @@
 
       refreshDropdowns();
       loadPhotoUrls();
+      renderSetup(); // it shows how many brews use each item
     }
 
-    // Fill the brewer filter + autocomplete with values you've used before
+    // Fill the brewer filter + variety autocomplete with values you've used before
     function refreshDropdowns() {
       const unique = (key) => [...new Set(brews.map(b => b[key]).filter(Boolean))].sort();
       const current = $('fBrewer').value;
       $('fBrewer').innerHTML = '<option value="">All</option>' +
         unique('brewer').map(v => `<option ${v === current ? 'selected' : ''}>${escapeHtml(v)}</option>`).join('');
-      const defaults = { brewer: ['V60', 'Kalita Wave', 'Origami', 'Chemex', 'April', 'Orea'] };
-      $('brewerList').innerHTML = [...new Set([...unique('brewer'), ...defaults.brewer])].map(v => `<option>${escapeHtml(v)}</option>`).join('');
-      $('grinderList').innerHTML = unique('grinder').map(v => `<option>${escapeHtml(v)}</option>`).join('');
       $('varietyList').innerHTML = [...new Set([...unique('variety'), ...VARIETIES])].map(v => `<option>${escapeHtml(v)}</option>`).join('');
     }
 
     // ---------- The add/edit form ----------
     const form = $('form');
     let editingId = null;
+    let formOrig = {}; // the brew as it was when the form opened (to keep its equipment names)
     let currentRating = 0;
 
     function addPourRow(p = {}) {
@@ -1021,10 +1128,14 @@
 
       // New brews default to whichever temp unit you used last
       const lastUnit = brews.length ? brews[brews.length - 1].tempUnit : null;
-      const data = brew || { brewDate: today(), tempUnit: lastUnit || 'C', pours: [{ t: '0:00', g: '', note: 'bloom' }] };
+      const data = brew || { brewDate: today(), tempUnit: lastUnit || 'C', pours: [{ t: '0:00', g: '', note: 'bloom' }], ...lastGearChoice() };
       for (const el of form.elements) {
         if (el.name && el.name in data) el.value = data[el.name] ?? '';
       }
+      // Equipment dropdowns and tick boxes, filled from your Coffee Setup
+      formOrig = data;
+      GEAR_SELECTS.forEach(category => fillGearSelect(category, startingGear(data, category)));
+      fillOthers((data.others || []).map(o => o.id));
       if (mode === 'copy') form.brewDate.value = today();
       form.querySelectorAll('.date-input').forEach(el => { el.value = toDisplayDate(el.value); checkDate(el); });
       (data.pours || []).forEach(addPourRow);
@@ -1045,6 +1156,21 @@
       }).filter(p => p.t || p.g || p.note);
       f.rating = currentRating;
       f.photo = formPhoto.path;
+      // Equipment: each brew keeps the gear's id and a copy of its name, so the brew still
+      // reads correctly if the gear is later renamed or removed from your setup
+      GEAR_SELECTS.forEach(category => {
+        const id = f[category + 'Id'];
+        const origId = formOrig[category + 'Id'] || '', origName = formOrig[category] || '';
+        const item = gear.find(g => g.id === id);
+        if (id === KEEP) { f[category] = origName; f[category + 'Id'] = origId; }
+        else if (!item) { f[category] = ''; f[category + 'Id'] = ''; }
+        else f[category] = id === origId && origName ? origName : gearLabel(item);
+      });
+      f.others = [...$('othersPick').querySelectorAll('input:checked')].map(box => {
+        const old = (formOrig.others || []).find(o => o.id === box.value);
+        const item = gear.find(g => g.id === box.value);
+        return old?.name ? old : item ? { id: item.id, name: gearLabel(item), type: item.type || '' } : null;
+      }).filter(Boolean);
       return f;
     }
 
@@ -1091,6 +1217,323 @@
     $('closeBtn').onclick = () => $('dlg').close();
     $('addPour').onclick = () => addPourRow();
     $('newBtn').onclick = () => openForm(null, 'new');
+
+    // ---------- Coffee Setup (your equipment) ----------
+    // Each item looks like { id, category, type, brand, name, url, notes, source, archived }.
+    // `type` is only used for Others (Scale, Server…). Items that past brews use are never
+    // erased: deleting one marks it `archived`, which hides it but keeps those brews linked.
+    const GEAR_CATEGORIES = [
+      // `example` fills the grey hint text in the add-equipment form: [search, brand, name]
+      { key: 'brewer', label: 'Brewer', plural: 'brewers', example: ['Hario V60', 'Hario', 'V60'] },
+      { key: 'grinder', label: 'Grinder', plural: 'grinders', example: ['Mahlkönig EK43', 'Mahlkönig', 'EK43'] },
+      { key: 'filter', label: 'Filter', plural: 'filters', example: ['V60 Paper Filters 01', 'Hario', 'V60 Paper Filters 01'] },
+      { key: 'other', label: 'Others', plural: 'other gear', example: ['Acaia Pearl', 'Acaia', 'Pearl'] },
+    ];
+    const GEAR_SELECTS = ['brewer', 'grinder', 'filter']; // the ones with a dropdown in the brew form
+    const GEAR_TYPES = ['Scale', 'Kettle', 'Server', 'Thermometer', 'Timer', 'Refractometer', 'Water', 'Cup', 'Tool'];
+    const KEEP = 'keep', ADD = 'add'; // special dropdown choices: keep the brew's old name / add new gear
+
+    // Popular equipment, used for the "Find a product" suggestions: [category, brand, name, type for Others]
+    const GEAR_CATALOG = [
+      ['brewer', 'Hario', 'V60 01'], ['brewer', 'Hario', 'V60 02'], ['brewer', 'Hario', 'Switch'],
+      ['brewer', 'Kalita', 'Wave 155'], ['brewer', 'Kalita', 'Wave 185'],
+      ['brewer', 'Origami', 'Dripper S'], ['brewer', 'Origami', 'Dripper M'],
+      ['brewer', 'Chemex', 'Classic 6-Cup'], ['brewer', 'April', 'Brewer'], ['brewer', 'Orea', 'Brewer'],
+      ['brewer', 'Kono', 'Meimon Dripper'], ['brewer', 'Cafec', 'Flower Dripper'], ['brewer', 'Clever', 'Coffee Dripper'],
+      ['brewer', 'AeroPress', 'Original'], ['brewer', 'AeroPress', 'Go'], ['brewer', 'AeroPress', 'XL'],
+      ['brewer', 'Fellow', 'Stagg [X] Dripper'], ['brewer', 'Timemore', 'Crystal Eye Dripper'], ['brewer', 'Bee House', 'Dripper'],
+      ['grinder', 'Timemore', 'Chestnut C2'], ['grinder', 'Timemore', 'Chestnut C3'], ['grinder', 'Timemore', 'Chestnut C3S'],
+      ['grinder', 'Timemore', 'Sculptor 064S'], ['grinder', 'Timemore', 'Sculptor 078'], ['grinder', 'Timemore', 'Sculptor 078S'],
+      ['grinder', 'Comandante', 'C40 MK4'],
+      ['grinder', '1Zpresso', 'JX-Pro'], ['grinder', '1Zpresso', 'K-Ultra'], ['grinder', '1Zpresso', 'ZP6 Special'], ['grinder', '1Zpresso', 'Q2'],
+      ['grinder', 'Baratza', 'Encore'], ['grinder', 'Baratza', 'Encore ESP'], ['grinder', 'Baratza', 'Virtuoso+'],
+      ['grinder', 'Fellow', 'Ode Gen 2'], ['grinder', 'Fellow', 'Opus'],
+      ['grinder', 'Hario', 'Skerton Pro'], ['grinder', 'Kinu', 'M47'], ['grinder', 'Kingrinder', 'K6'],
+      ['grinder', 'Option-O', 'Lagom P64'], ['grinder', 'Option-O', 'Lagom Mini'],
+      ['grinder', 'Niche', 'Zero'], ['grinder', 'Niche', 'Duo'], ['grinder', 'Turin', 'DF64'],
+      ['grinder', 'Mahlkönig', 'EK43'], ['grinder', 'Mahlkönig', 'X54'], ['grinder', 'Weber Workshops', 'EG-1'],
+      ['grinder', 'Wilfa', 'Uniform'], ['grinder', 'Kalita', 'Nice Cut G'], ['grinder', 'Fuji Royal', 'R-220'],
+      ['grinder', 'Eureka', 'Mignon Specialita'],
+      ['filter', 'Hario', 'V60 Paper Filters 01'], ['filter', 'Hario', 'V60 Paper Filters 02'],
+      ['filter', 'Kalita', 'Wave Filter 155'], ['filter', 'Kalita', 'Wave Filter 185'],
+      ['filter', 'Cafec', 'Abaca Paper Filter'], ['filter', 'Cafec', 'T-90 Paper Filter'],
+      ['filter', 'Sibarist', 'FAST Cone Filter'], ['filter', 'Chemex', 'Bonded Filters'], ['filter', 'April', 'Paper Filters'],
+      ['filter', 'AeroPress', 'Paper Micro-Filters'], ['filter', 'Able', 'Kone'], ['filter', 'Melitta', 'Original Filter Papers 1x4'],
+      ['other', 'Fellow', 'Stagg EKG', 'Kettle'], ['other', 'Fellow', 'Stagg EKG Pro', 'Kettle'], ['other', 'Fellow', 'Corvo EKG', 'Kettle'],
+      ['other', 'Hario', 'Buono Kettle', 'Kettle'], ['other', 'Hario', 'V60 Drip Kettle Air', 'Kettle'],
+      ['other', 'Bonavita', 'Variable Temperature Gooseneck Kettle', 'Kettle'], ['other', 'Brewista', 'Artisan Gooseneck Kettle', 'Kettle'],
+      ['other', 'Timemore', 'Fish Smart Electric Kettle', 'Kettle'], ['other', 'Cosori', 'Gooseneck Electric Kettle', 'Kettle'],
+      ['other', 'OXO', 'Adjustable Temperature Pour-Over Kettle', 'Kettle'],
+      ['other', 'Acaia', 'Pearl', 'Scale'], ['other', 'Acaia', 'Lunar', 'Scale'], ['other', 'Felicita', 'Arc', 'Scale'],
+      ['other', 'Timemore', 'Black Mirror Basic 2', 'Scale'], ['other', 'Hario', 'V60 Drip Scale', 'Scale'], ['other', 'Fellow', 'Tally Pro', 'Scale'],
+      ['other', 'Hario', 'V60 Range Server', 'Server'], ['other', 'ThermoWorks', 'Thermapen ONE', 'Thermometer'],
+      ['other', 'DiFluid', 'R2 Extract', 'Refractometer'], ['other', 'Melodrip', 'Melodrip', 'Tool'],
+      ['other', 'Third Wave Water', 'Mineral Packets', 'Water'],
+    ].map(([category, brand, name, type = '']) => ({ category, brand, name, type }));
+
+    // "Hario" + "V60 02" → "Hario V60 02" (without repeating the brand if the name already starts with it)
+    function gearLabel(g) {
+      const brand = (g.brand || '').trim(), name = (g.name || '').trim();
+      return brand && !name.toLowerCase().startsWith(brand.toLowerCase()) ? `${brand} ${name}`.trim() : name || brand;
+    }
+    const othersLabel = (g) => g.type ? `${gearLabel(g)} (${g.type})` : gearLabel(g);
+    const activeGear = (category) => gear.filter(g => g.category === category && !g.archived)
+      .sort((a, b) => gearLabel(a).localeCompare(gearLabel(b)));
+    function brewsUsing(item) {
+      return brews.filter(b => item.category === 'other'
+        ? (b.others || []).some(o => o.id === item.id)
+        : b[item.category + 'Id'] === item.id);
+    }
+
+    // The Coffee Setup page: one box per category, listing your gear
+    function renderSetup() {
+      $('gearGroups').innerHTML = GEAR_CATEGORIES.map(c => {
+        const items = activeGear(c.key);
+        return `
+          <div>
+            <div class="gear-head">
+              <h2>${c.label}</h2>
+              <button type="button" class="small" data-add="${c.key}">+ Add</button>
+            </div>
+            <div class="panel">
+              ${items.length ? items.map(g => {
+                const used = brewsUsing(g).length;
+                const sub = [g.type, used ? `Used in ${used} brew${used > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ');
+                return `
+                  <button type="button" class="panel-item" data-gear-id="${escapeHtml(g.id)}">
+                    <span class="gear-name">${escapeHtml(gearLabel(g))}</span>
+                    ${sub ? `<span class="gear-sub">${escapeHtml(sub)}</span>` : ''}
+                  </button>`;
+              }).join('') : `<div class="gear-empty">No ${c.plural} yet</div>`}
+            </div>
+          </div>`;
+      }).join('');
+    }
+    $('gearGroups').onclick = (e) => {
+      const add = e.target.closest('[data-add]');
+      if (add) return openGearForm(null, add.dataset.add);
+      const row = e.target.closest('[data-gear-id]');
+      if (row) openGearForm(gear.find(g => g.id === row.dataset.gearId));
+    };
+
+    // ----- The add/edit equipment popup -----
+    const gearForm = $('gearForm');
+    const gearField = (name) => gearForm.elements.namedItem(name);
+    let editingGearId = null;
+    let gearSource = 'manual'; // becomes 'catalog' when a suggestion is picked
+    let gearDone = null;       // when opened from the brew form: told about the new gear (or null if none)
+
+    $('gearCategory').innerHTML = GEAR_CATEGORIES.map(c => `<option value="${c.key}">${c.label}</option>`).join('');
+    $('gearTypeList').innerHTML = GEAR_TYPES.map(t => `<option>${t}</option>`).join('');
+
+    // "Type" (Scale, Server…) is only asked for Others, and the grey examples match the category
+    function updateGearType() {
+      const c = GEAR_CATEGORIES.find(c => c.key === $('gearCategory').value);
+      $('gearTypeField').hidden = c.key !== 'other';
+      const [search, brand, name] = c.example;
+      $('gearQ').placeholder = `e.g. ${search}`;
+      gearField('brand').placeholder = `e.g. ${brand}`;
+      gearField('name').placeholder = `e.g. ${name}`;
+    }
+    $('gearCategory').onchange = () => { updateGearType(); drawGearResults(); };
+
+    // `onDone` is for adding gear from the brew form: the category is fixed, and
+    // onDone(newGear) is called once, on Save (or with null if the popup is closed without saving)
+    function openGearForm(item, category, onDone = null) {
+      gearForm.reset();
+      gearDone = onDone;
+      editingGearId = item ? item.id : null;
+      gearSource = item?.source || 'manual';
+      $('gearTitle').textContent = item ? 'Edit equipment' : 'Add equipment';
+      $('gearDeleteBtn').hidden = !item;
+      $('gearSearch').hidden = !!item; // searching is for adding new gear
+      const data = item || { category };
+      for (const el of gearForm.elements) {
+        if (el.name && el.name in data) el.value = data[el.name] ?? '';
+      }
+      // Gear that past brews use stays in its category, so those brews stay linked correctly
+      $('gearCategory').disabled = !!onDone || (!!item && brewsUsing(item).length > 0);
+      updateGearType();
+      drawGearResults();
+      $('gearDlg').showModal();
+    }
+
+    // Suggestions from GEAR_CATALOG as you type; every word typed must appear.
+    // Matches in the chosen category come first.
+    function drawGearResults() {
+      const words = $('gearQ').value.toLowerCase().split(/\s+/).filter(Boolean);
+      $('gearResults').hidden = !words.length;
+      if (!words.length) return;
+      const category = $('gearCategory').value;
+      const fixed = $('gearCategory').disabled; // only this category's products can be picked
+      const matches = GEAR_CATALOG
+        .filter(p => (!fixed || p.category === category)
+          && words.every(w => `${p.brand} ${p.name} ${p.type}`.toLowerCase().includes(w)))
+        .sort((a, b) => (b.category === category) - (a.category === category))
+        .slice(0, 8);
+      $('gearResults').innerHTML = matches.length
+        ? matches.map(p => `
+            <button type="button" class="gear-result" data-i="${GEAR_CATALOG.indexOf(p)}">
+              <span>${escapeHtml(gearLabel(p))}</span>
+              <span class="gear-sub">${escapeHtml(p.type || GEAR_CATEGORIES.find(c => c.key === p.category).label)}</span>
+            </button>`).join('')
+        : '<div class="gear-empty">No matches. Fill in the details below instead.</div>';
+    }
+
+    // Picking a suggestion fills in the form; everything stays editable
+    function pickCatalogItem(p) {
+      gearField('category').value = p.category;
+      gearField('brand').value = p.brand;
+      gearField('name').value = p.name;
+      gearField('type').value = p.type;
+      gearSource = 'catalog';
+      $('gearQ').value = '';
+      updateGearType();
+      drawGearResults();
+    }
+
+    $('gearQ').oninput = drawGearResults;
+    // Enter picks the top suggestion instead of saving the form
+    $('gearQ').onkeydown = (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      $('gearResults').querySelector('[data-i]')?.click();
+    };
+    $('gearResults').onclick = (e) => {
+      const btn = e.target.closest('[data-i]');
+      if (btn) pickCatalogItem(GEAR_CATALOG[btn.dataset.i]);
+    };
+
+    // After renaming gear, offer to change the name saved on past brews too
+    function renameInBrews(before, item) {
+      const name = gearLabel(item);
+      if (name === gearLabel(before) && (item.type || '') === (before.type || '')) return;
+      const used = brewsUsing(item);
+      if (!used.length || !confirm(`Also change the name on ${used.length} past brew(s) to "${name}"?`)) return;
+      used.forEach(b => {
+        if (item.category === 'other') b.others = b.others.map(o => o.id === item.id ? { ...o, name, type: item.type || '' } : o);
+        else b[item.category] = name;
+      });
+      cacheBrews();
+      uploadBrews(used);
+    }
+
+    gearForm.onsubmit = () => {
+      const f = Object.fromEntries(new FormData(gearForm));
+      for (const k in f) f[k] = f[k].trim();
+      let item;
+      if (editingGearId) {
+        const i = gear.findIndex(g => g.id === editingGearId);
+        if (i < 0) return;
+        const before = gear[i];
+        item = gear[i] = { ...before, ...f };
+        if (item.category !== 'other') item.type = '';
+        renameInBrews(before, item);
+      } else {
+        // The category is read directly: when it's fixed (disabled), the form leaves it out
+        item = { id: crypto.randomUUID(), ...f, category: $('gearCategory').value, source: gearSource, archived: false };
+        if (item.category !== 'other') item.type = '';
+        gear.push(item);
+      }
+      cacheGear();
+      render();
+      uploadGear([item]);
+      finishGearForm(editingGearId ? null : item);
+    };
+
+    $('gearDeleteBtn').onclick = () => {
+      const item = gear.find(g => g.id === editingGearId);
+      if (!item) return;
+      const used = brewsUsing(item).length;
+      const question = used
+        ? `Remove "${gearLabel(item)}" from your setup? The ${used} brew(s) that used it will still show it.`
+        : `Delete "${gearLabel(item)}"?`;
+      if (!confirm(question)) return;
+      $('gearDlg').close();
+      if (used) item.archived = true; // hidden, but kept so old brews stay linked
+      else gear = gear.filter(g => g !== item);
+      cacheGear();
+      render();
+      if (used) uploadGear([item]);
+      else deleteGearOnline(item.id);
+    };
+    function finishGearForm(item) {
+      const done = gearDone;
+      gearDone = null;
+      if (done) done(item);
+    }
+    $('gearCloseBtn').onclick = () => { finishGearForm(null); $('gearDlg').close(); };
+    $('gearDlg').addEventListener('close', () => finishGearForm(null)); // e.g. closed with Esc
+
+    // ----- Equipment in the brew form -----
+    const option = (value, text) => `<option value="${escapeHtml(value)}">${escapeHtml(text)}</option>`;
+
+    // New brews start with the gear from your last brew (if it's still in your setup)
+    function lastGearChoice() {
+      const last = brews[brews.length - 1] || {};
+      const active = (id) => gear.some(g => g.id === id && !g.archived);
+      const choice = { others: (last.others || []).filter(o => active(o.id)).map(o => ({ id: o.id })) };
+      GEAR_SELECTS.forEach(category => {
+        if (active(last[category + 'Id'])) choice[category + 'Id'] = last[category + 'Id'];
+      });
+      return choice;
+    }
+
+    // Which dropdown choice a brew starts with. Brews from before Coffee Setup only
+    // have a typed name: pick the gear with that name if there is one, else keep the name.
+    function startingGear(data, category) {
+      if (data[category + 'Id']) return data[category + 'Id'];
+      if (!data[category]) return '';
+      return activeGear(category).find(g => gearLabel(g) === data[category])?.id || KEEP;
+    }
+
+    // Fill one equipment dropdown and choose `selected` (a gear id, KEEP or '').
+    // If this brew's gear is no longer in your setup, it still gets a choice, so saving doesn't lose it.
+    function fillGearSelect(category, selected) {
+      const c = GEAR_CATEGORIES.find(c => c.key === category);
+      const sel = form.elements.namedItem(category + 'Id');
+      const items = activeGear(category);
+      const origId = formOrig[category + 'Id'] || '', origName = formOrig[category] || '';
+      const old = gear.find(g => g.id === origId);
+      let extra = '';
+      if (!items.some(g => g.id === origId)) {
+        if (old) extra = option(old.id, `${origName || gearLabel(old)} (removed from setup)`);
+        else if (origName) extra = option(KEEP, `${origName} (not in your setup)`);
+      }
+      sel.innerHTML = option('', items.length ? 'None' : `No ${c.plural} yet`)
+        + items.map(g => option(g.id, gearLabel(g))).join('')
+        + extra
+        + option(ADD, `+ Add a ${c.label.toLowerCase()}…`);
+      sel.value = selected;
+      if (sel.selectedIndex < 0) sel.value = selected === origId && origName ? KEEP : '';
+      sel.dataset.value = sel.value; // to go back to if adding new gear is cancelled
+    }
+
+    // "+ Add…" in the brew form opens the add-equipment popup on top; the new gear is then chosen
+    GEAR_SELECTS.forEach(category => {
+      const sel = form.elements.namedItem(category + 'Id');
+      sel.onchange = () => {
+        if (sel.value !== ADD) { sel.dataset.value = sel.value; return; }
+        const before = sel.dataset.value;
+        sel.value = before; // until the new gear is saved
+        openGearForm(null, category, item => fillGearSelect(category, item ? item.id : before));
+      };
+    });
+
+    // The Others tick boxes; `checked` is a list of gear ids
+    function fillOthers(checked) {
+      const items = activeGear('other');
+      const gone = (formOrig.others || []).filter(o => o.name && !items.some(g => g.id === o.id));
+      const box = (id, text) =>
+        `<label class="check"><input type="checkbox" value="${escapeHtml(id)}"${checked.includes(id) ? ' checked' : ''}>${escapeHtml(text)}</label>`;
+      $('othersPick').innerHTML = (items.map(g => box(g.id, othersLabel(g))).join('')
+        + gone.map(o => box(o.id, `${o.name} (removed from setup)`)).join(''))
+        || '<span class="gear-sub">No other gear yet</span>';
+    }
+    $('addOther').onclick = () => {
+      const checked = [...$('othersPick').querySelectorAll('input:checked')].map(box => box.value);
+      openGearForm(null, 'other', item => { if (item) fillOthers([...checked, item.id]); });
+    };
 
     // ---------- Floating + button (phones) ----------
     function setFabOpen(open) {
