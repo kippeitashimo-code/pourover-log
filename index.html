@@ -1271,6 +1271,9 @@
       ['other', 'Third Wave Water', 'Mineral Packets', 'Water'],
     ].map(([category, brand, name, type = '']) => ({ category, brand, name, type }));
 
+    // Makes search forgiving: "Mahlkönig V60-02" → "mahlkonigv6002" (no accents, spaces or symbols)
+    const searchKey = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
     // "Hario" + "V60 02" → "Hario V60 02" (without repeating the brand if the name already starts with it)
     function gearLabel(g) {
       const brand = (g.brand || '').trim(), name = (g.name || '').trim();
@@ -1359,21 +1362,23 @@
     }
 
     // Suggestions from GEAR_CATALOG as you type; every word typed must appear.
+    // Accents, spaces and symbols are ignored, so "mahlkonig" or "v60-02" still match.
     // Matches in the chosen category come first.
     function drawGearResults() {
-      const words = $('gearQ').value.toLowerCase().split(/\s+/).filter(Boolean);
+      const words = $('gearQ').value.split(/\s+/).map(searchKey).filter(Boolean);
       $('gearResults').hidden = !words.length;
       if (!words.length) return;
       const category = $('gearCategory').value;
       const fixed = $('gearCategory').disabled; // only this category's products can be picked
       const matches = GEAR_CATALOG
+        .map((p, i) => ({ ...p, i }))
         .filter(p => (!fixed || p.category === category)
-          && words.every(w => `${p.brand} ${p.name} ${p.type}`.toLowerCase().includes(w)))
+          && words.every(w => searchKey(`${p.brand} ${p.name} ${p.type}`).includes(w)))
         .sort((a, b) => (b.category === category) - (a.category === category))
         .slice(0, 8);
       $('gearResults').innerHTML = matches.length
         ? matches.map(p => `
-            <button type="button" class="gear-result" data-i="${GEAR_CATALOG.indexOf(p)}">
+            <button type="button" class="gear-result" data-i="${p.i}">
               <span>${escapeHtml(gearLabel(p))}</span>
               <span class="gear-sub">${escapeHtml(p.type || GEAR_CATEGORIES.find(c => c.key === p.category).label)}</span>
             </button>`).join('')
