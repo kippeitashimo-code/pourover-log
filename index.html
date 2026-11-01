@@ -3,7 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Pourover Log</title>
+  <title>Brewbook</title>
+  <!-- Roboto Slab for the Brewbook logo only (just these letters are downloaded) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@700&text=Brewbook&display=swap">
 
   <!-- ============================================================
        STYLES (CSS): how the page looks
@@ -24,7 +28,8 @@
       --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.06);
       --shadow-hover: 0 2px 4px rgba(0,0,0,.05), 0 10px 28px rgba(0,0,0,.10);
       --bar-bg: rgba(255,255,255,.78); /* see-through bottom bar */
-      --tabbar-h: 60px; /* height of the bottom navigation bar (plus the phone's safe area) */
+      --tabbar-h: 60px; /* height of the bottom navigation bar */
+      --tabbar-gap: max(12px, env(safe-area-inset-bottom)); /* space below the bar */
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -55,12 +60,28 @@
     }
     .wrap {
       max-width: 960px; margin: 0 auto;
-      padding: 24px max(16px, env(safe-area-inset-right)) calc(var(--tabbar-h) + 48px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+      padding: 24px max(16px, env(safe-area-inset-right)) calc(var(--tabbar-h) + 48px + var(--tabbar-gap)) max(16px, env(safe-area-inset-left));
     }
 
     header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
     h1 { margin: 0; font-size: 1.9rem; font-weight: 700; letter-spacing: -.02em; }
     h1 span { color: var(--accent); }
+    .brand { font-family: "Roboto Slab", Rockwell, Georgia, serif; letter-spacing: -.01em; } /* the Brewbook logo */
+    /* The logo at the top of every page, above each page's own heading */
+    /* It stays put at the top, with each page's heading row stuck just below it; the rest slides underneath */
+    .brandbar {
+      position: sticky; top: 0; z-index: 6; height: var(--brandbar-h);
+      padding: max(20px, env(safe-area-inset-top)) 16px 0; text-align: center;
+    }
+    .brandbar .brand { font-size: 2.3rem; font-weight: 700; line-height: 1.2; } /* 1.2× the page headings */
+    #appView { --brandbar-h: calc(max(20px, env(safe-area-inset-top)) + 2.76rem); }
+    #appView header { position: sticky; top: var(--brandbar-h); z-index: 5; padding: 12px 0; margin-top: -12px; } /* -12px cancels the page's top padding, so it starts right where it sticks */
+    .brandbar, #appView header {
+      background: color-mix(in srgb, var(--bg) 85%, transparent);
+      -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+    }
+    .brand span { color: var(--accent); }
+    #appView .wrap { padding-top: 12px; }
     h2, h3 { letter-spacing: -.01em; }
 
     /* Rounded "pill" buttons with no outline, like iOS */
@@ -147,7 +168,7 @@
     .card.has-side { display: flex; gap: 12px; }
     .card-main { flex: 1; min-width: 0; }
     .card-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
-    .card-side .radar { width: 150px; margin-top: auto; } /* sits at the bottom of the card */
+    .card-side .radar { width: 150px; margin-top: auto; margin-bottom: 8px; } /* sits at the bottom, its lowest name level with the last line on the left */
     .card-side .radar text { font-size: 20px; } /* the small chart is drawn shrunk, so its letters start bigger */
 
     /* Pentagon chart of the five tasting scores */
@@ -212,7 +233,7 @@
 
     /* My Beans page and the bean popups */
     .beans-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
-    #beanItems { max-width: 640px; margin-top: 12px; padding: 6px; }
+    #beanItems { margin-top: 12px; } /* bean cards, laid out like the Brew Log */
     #beanDlg, #beanPickDlg { width: min(480px, calc(100% - 32px)); }
     .bean-pick-list { margin-top: 10px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
     .bean-pick-list .gear-result { flex-direction: column; align-items: flex-start; gap: 2px; }
@@ -225,24 +246,31 @@
     .check { display: flex; align-items: center; gap: 6px; margin: 0; font-size: .95rem; color: var(--text); }
     .check input { width: auto; }
 
-    /* Bottom navigation bar: always visible, sits above the phone's home-swipe area */
+    /* Bottom navigation bar: a rounded pill floating above the phone's home-swipe area */
     .tabbar {
-      position: fixed; z-index: 15; left: 0; right: 0; bottom: 0;
-      background: var(--bar-bg); border-top: 1px solid var(--line);
-      -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
-      padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      position: fixed; z-index: 15; left: 0; right: 0; bottom: 0; pointer-events: none;
+      padding: 0 max(16px, env(safe-area-inset-right)) var(--tabbar-gap) max(16px, env(safe-area-inset-left));
+      transition: transform .25s cubic-bezier(.2, .8, .2, 1);
     }
-    .tabbar-inner { display: flex; max-width: 480px; margin: 0 auto; }
+    /* Scrolling down slides the bar away (and the + button down with it); scrolling up brings it back */
+    .bar-away .tabbar { transform: translateY(calc(100% + 8px)); }
+    .bar-away .fab { transform: translateY(var(--tabbar-h)); }
+    .tabbar-inner {
+      display: flex; max-width: 480px; margin: 0 auto; padding: 4px; pointer-events: auto;
+      background: var(--bar-bg); border: 1px solid var(--line); border-radius: 999px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.12);
+      -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+    }
     .tab {
-      flex: 1; height: var(--tabbar-h); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+      flex: 1; height: calc(var(--tabbar-h) - 10px); border-radius: 999px; transition: background-color .15s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
       color: var(--muted); text-decoration: none; font-size: .72rem; -webkit-tap-highlight-color: transparent;
     }
     .tab:hover { color: var(--text); }
-    .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; border-radius: 10px; }
+    .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
     .tab-icon { position: relative; display: flex; padding: 3px 18px; border-radius: 999px; transition: background-color .15s; }
     .tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     /* The page you're on: shown in the accent colour, like an iOS tab bar */
-    .tab[aria-current="page"] { color: var(--accent); font-weight: 600; }
+    .tab[aria-current="page"] { color: var(--accent); font-weight: 600; background: var(--fill); }
     /* Red dot on the Account tab when syncing failed */
     .tab.has-badge .tab-icon::after {
       content: ''; position: absolute; top: 2px; right: 14px; width: 8px; height: 8px; border-radius: 50%;
@@ -253,7 +281,8 @@
     .fab {
       display: none; position: fixed; z-index: 10;
       right: calc(20px + env(safe-area-inset-right));
-      bottom: calc(var(--tabbar-h) + 16px + env(safe-area-inset-bottom));
+      bottom: calc(var(--tabbar-h) + 16px + var(--tabbar-gap));
+      transition: transform .25s cubic-bezier(.2, .8, .2, 1);
     }
     .fab-btn {
       position: relative; z-index: 1; width: 56px; height: 56px; padding: 0; border-radius: 50%;
@@ -286,11 +315,11 @@
     }
     @media (max-width: 640px) {
       .fab { display: block; }
-      #newBtn, #importBtn { display: none; } /* the floating button covers these on phones */
-      #page-log { padding-bottom: calc(var(--tabbar-h) + 100px + env(safe-area-inset-bottom)); } /* last card stays clear of it */
+      #newBtn, #importBtn, #addBeanBtn, #addGearBtn { display: none; } /* the floating buttons cover these on phones */
+      #page-log, #page-beans, #page-setup { padding-bottom: calc(var(--tabbar-h) + 100px + var(--tabbar-gap)); } /* last item stays clear of it */
     }
     @media (prefers-reduced-motion: reduce) {
-      .fab-item, .fab-btn svg, .filter-panel, .filters { transition-duration: .01s !important; transition-delay: 0s !important; }
+      .fab-item, .fab-btn svg, .filter-panel, .filters, .tabbar, .fab { transition-duration: .01s !important; transition-delay: 0s !important; }
     }
 
     /* Form popup (dialog) */
@@ -387,7 +416,7 @@
   <!-- Sign-in screen, shown when you're logged out -->
   <div class="auth-wrap" id="authView" hidden>
     <form class="auth" id="authForm">
-      <h1>Pourover <span>Log</span></h1>
+      <h1 class="brand">Brew<span>book</span></h1>
       <p>Sign in to see your brews on any device.</p>
       <div class="field"><label for="authEmail">Email</label><input id="authEmail" type="email" autocomplete="email" required></div>
       <div class="field"><label for="authPassword">Password</label><input id="authPassword" type="password" autocomplete="current-password" minlength="6" required></div>
@@ -400,10 +429,12 @@
   </div>
 
   <div id="appView" hidden>
+  <div class="brandbar"><div class="brand">Brew<span>book</span></div></div>
+
   <!-- Page 1: Brew Log (the list of brews) -->
   <section class="wrap" id="page-log">
     <header>
-      <h1>Pourover <span>Log</span></h1>
+      <h1>Brew Log</h1>
       <div class="toolbar">
         <button type="button" class="icon-btn" id="filterBtn" title="Search & filter" aria-label="Search & filter" aria-expanded="false" aria-controls="filterPanel">
           <svg viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>
@@ -457,18 +488,37 @@
 
   <!-- Page 2: My Beans. The beans you've bought; filled in by renderBeans() -->
   <section class="wrap" id="page-beans" hidden>
-    <header><h1>My Beans</h1></header>
-    <div class="beans-actions">
+    <header>
+      <h1>My Beans</h1>
       <button type="button" class="primary" id="addBeanBtn">+ Add bean</button>
+    </header>
+    <div class="beans-actions">
       <button type="button" id="importBeansBtn">Add from past brews</button>
     </div>
-    <div class="panel" id="beanItems"></div>
+    <div class="grid" id="beanItems"></div>
+
+    <!-- Floating + button for phones, in the same spot as on the Brew Log -->
+    <div class="fab">
+      <button type="button" class="fab-btn" id="beanFabBtn" aria-label="Add bean">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
   </section>
 
   <!-- Page 3: Coffee Setup. Your equipment, one box per category; filled in by renderSetup() -->
   <section class="wrap" id="page-setup" hidden>
-    <header><h1>Coffee Setup</h1></header>
+    <header>
+      <h1>Coffee Setup</h1>
+      <button type="button" class="primary" id="addGearBtn">+ Add equipment</button>
+    </header>
     <div class="gear-groups" id="gearGroups"></div>
+
+    <!-- Floating + button for phones, in the same spot as on the Brew Log -->
+    <div class="fab">
+      <button type="button" class="fab-btn" id="gearFabBtn" aria-label="Add equipment">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
   </section>
 
   <!-- Page 4: Account. To add a feature, add another .panel-section, or a .panel-item button to the actions list -->
@@ -639,6 +689,9 @@
       </div>
 
       <div class="dlg-body">
+        <div class="row">
+          <div><label for="gearCategory">Category</label><select name="category" id="gearCategory"></select></div>
+        </div>
         <div class="gear-search" id="gearSearch">
           <label for="gearQ">Find a product</label>
           <!-- No name, so it isn't saved with the form -->
@@ -647,7 +700,6 @@
           <p class="hint">Not in the list? Just fill in the details below.</p>
         </div>
         <div class="row">
-          <div><label>Category</label><select name="category" id="gearCategory"></select></div>
           <div id="gearTypeField"><label>Type</label><input name="type" list="gearTypeList" placeholder="Scale, server, kettle…" autocomplete="off"></div>
         </div>
         <div class="row">
@@ -1038,6 +1090,7 @@
     const toSavedDate = (d) => (d || '').replaceAll('/', '-');
     // Tasting scores, each 1–10 (0 = not scored yet)
     const TASTES = [['body', 'Body'], ['acidity', 'Acidity'], ['sweetness', 'Sweetness'], ['bitterness', 'Bitterness'], ['clarity', 'Clarity']];
+    const SHORT_TASTES = { sweetness: 'Sweet', bitterness: 'Bitter' }; // shorter names for the small chart on the cards
     // Older brews had a 1–5 star "rating" instead of "overall", so double it
     const overallOf = (b) => 'overall' in b ? b.overall || 0 : (b.rating || 0) * 2;
     // Overall score as a bar along the card's top edge (nothing when not scored)
@@ -1058,8 +1111,9 @@
       const spokes = TASTES.map((_, i) => { const [x, y] = at(i, 10); return `<line class="spoke" x1="0" y1="0" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`; }).join('');
       const dots = TASTES.map((_, i) => { if (!value(i)) return ''; const [x, y] = at(i, value(i)); return `<circle class="pt" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3"/>`; }).join('');
       // Names just outside each corner: with the score in the large version, name only on the cards
-      const names = TASTES.map(([, label], i) => {
+      const names = TASTES.map(([key, label], i) => {
         if (!big) {
+          label = SHORT_TASTES[key] || label;
           const [x, y] = at(i, 10);
           const side = y < 0 && Math.abs(x) > 5; // the two upper side corners: put the name beside them
           const tx = side ? x + Math.sign(x) * 8 : x;
@@ -1087,6 +1141,10 @@
       temp: '<path d="M14 14.8V4.5a2 2 0 0 0-4 0v10.3a4 4 0 1 0 4 0z"/><path d="M12 11v6"/>',
       // A clock
       time: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+      // A flame (roast date, on My Beans)
+      roast: '<path d="M12 3c1 3 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-4 2.5-5 0 2 1 3 2 3 0-3-1-5.5.5-8z"/>',
+      // A cup (how many brews used the bean, on My Beans)
+      cup: '<path d="M4 9h13v4a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 10h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M5 21h11"/>',
     };
     const factHtml = (icon, text) => `<li><svg viewBox="0 0 24 24" aria-hidden="true">${FACT_ICONS[icon]}</svg><span>${text}</span></li>`;
     const ratio = (dose, water) => (dose > 0 && water > 0) ? `1:${(water / dose).toFixed(1)}` : '—';
@@ -1674,7 +1732,6 @@
           <div>
             <div class="gear-head">
               <h2>${c.label}</h2>
-              <button type="button" class="small" data-add="${c.key}">+ Add</button>
             </div>
             <div class="panel">
               ${items.length ? items.map(g => {
@@ -1690,9 +1747,9 @@
           </div>`;
       }).join('');
     }
+    // One add button for every category: the category is chosen first in the popup
+    $('addGearBtn').onclick = $('gearFabBtn').onclick = () => openGearForm(null, GEAR_CATEGORIES[0].key);
     $('gearGroups').onclick = (e) => {
-      const add = e.target.closest('[data-add]');
-      if (add) return openGearForm(null, add.dataset.add);
       const row = e.target.closest('[data-gear-id]');
       if (row) openGearForm(gear.find(g => g.id === row.dataset.gearId));
     };
@@ -1741,18 +1798,16 @@
 
     // Suggestions from GEAR_CATALOG as you type; every word typed must appear.
     // Accents, spaces and symbols are ignored, so "mahlkonig" or "v60-02" still match.
-    // Matches in the chosen category come first.
+    // Only products in the chosen category are shown.
     function drawGearResults() {
       const words = $('gearQ').value.split(/\s+/).map(searchKey).filter(Boolean);
       $('gearResults').hidden = !words.length;
       if (!words.length) return;
       const category = $('gearCategory').value;
-      const fixed = $('gearCategory').disabled; // only this category's products can be picked
       const matches = GEAR_CATALOG
         .map((p, i) => ({ ...p, i }))
-        .filter(p => (!fixed || p.category === category)
+        .filter(p => p.category === category
           && words.every(w => searchKey(`${p.brand} ${p.name} ${p.type}`).includes(w)))
-        .sort((a, b) => (b.category === category) - (a.category === category))
         .slice(0, 8);
       $('gearResults').innerHTML = matches.length
         ? matches.map(p => `
@@ -1935,12 +1990,13 @@
       if (!date) return null;
       return Math.round((new Date(today() + 'T00:00:00') - new Date(date + 'T00:00:00')) / 86400000);
     }
-    // "Roaster · Origin · 12 days since roast"
-    function beanSub(bean) {
+    // "12 days off roast" ('' if there's no roast date)
+    function roastAge(bean) {
       const days = daysSince(bean.roastDate);
-      const age = days === null ? '' : days < 0 ? 'Not roasted yet' : `${days} day${days === 1 ? '' : 's'} since roast`;
-      return [bean.roaster, bean.origin, age].filter(Boolean).join(' · ');
+      return days === null ? '' : days < 0 ? 'Not roasted yet' : `${days} day${days === 1 ? '' : 's'} off roast`;
     }
+    // "Roaster · Origin · 12 days off roast"
+    const beanSub = (bean) => [bean.roaster, bean.origin, roastAge(bean)].filter(Boolean).join(' · ');
 
     // Brews with a bean name that isn't linked to My Beans yet, grouped by name
     function unlinkedBeanNames() {
@@ -1954,17 +2010,20 @@
       return names;
     }
 
-    // The My Beans page: newest roast first
+    // The My Beans page: newest roast first, one card per bean (like the Brew Log cards)
     function renderBeans() {
       const items = activeBeans();
       $('beanItems').innerHTML = items.length ? items.map(bean => {
         const used = brewsWithBean(bean).length;
-        const sub = [beanSub(bean), used ? `Used in ${used} brew${used > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ');
         return `
-          <button type="button" class="panel-item" data-bean-id="${escapeHtml(bean.id)}">
-            <span class="gear-name">${escapeHtml(bean.name)}</span>
-            ${sub ? `<span class="gear-sub">${escapeHtml(sub)}</span>` : ''}
-          </button>`;
+          <div class="card" data-bean-id="${escapeHtml(bean.id)}">
+            <h3>${escapeHtml(bean.name)}</h3>
+            <div class="sub">${escapeHtml([bean.roaster, bean.origin, bean.variety, bean.process].filter(Boolean).join(' · '))}</div>
+            <ul class="facts">
+              ${bean.roastDate ? factHtml('roast', escapeHtml(`${toDisplayDate(bean.roastDate)} · ${roastAge(bean)}`)) : ''}
+              ${used ? factHtml('cup', `Used in ${used} brew${used > 1 ? 's' : ''}`) : ''}
+            </ul>
+          </div>`;
       }).join('') : '<div class="gear-empty">No beans yet</div>';
       $('importBeansBtn').hidden = !unlinkedBeanNames().size;
     }
@@ -1972,7 +2031,7 @@
       const row = e.target.closest('[data-bean-id]');
       if (row) openBeanForm(beans.find(b => b.id === row.dataset.beanId));
     };
-    $('addBeanBtn').onclick = () => openBeanForm(null);
+    $('addBeanBtn').onclick = $('beanFabBtn').onclick = () => openBeanForm(null);
 
     // "Add from past brews": one bean per name used in your brews, with the details
     // from your latest brew of it. Names already in My Beans are just linked.
@@ -2201,11 +2260,31 @@
         else $(`tab-${p}`).removeAttribute('aria-current');
       });
       setFabOpen(false);
+      setBarAway(false);
       // Come back to where you were on each page (e.g. halfway down the brew list)
       if (page !== currentPage) scrollTo(0, scrollPositions[page] || 0);
       currentPage = page;
     }
     window.addEventListener('hashchange', showPage);
+
+    // The bottom bar hides while you scroll down and comes back as soon as you scroll up
+    function setBarAway(away) { document.body.classList.toggle('bar-away', away); }
+    let lastScrollY = scrollY, scrollQueued = false;
+    window.addEventListener('scroll', () => {
+      if (scrollQueued) return;
+      scrollQueued = true;
+      requestAnimationFrame(() => {
+        scrollQueued = false;
+        const y = scrollY, moved = y - lastScrollY;
+        if (y < 60) setBarAway(false);           // near the top: always shown
+        else if (moved > 8) setBarAway(true);    // scrolling down
+        else if (moved < -8) setBarAway(false);  // scrolling up
+        else return;                             // tiny move: wait until it adds up
+        lastScrollY = y;
+      });
+    }, { passive: true });
+    // Tabbing to the bar with the keyboard shows it again
+    document.querySelector('.tabbar').addEventListener('focusin', () => setBarAway(false));
 
     // Tapping anywhere else, or pressing Escape, closes the + menu
     document.addEventListener('click', (e) => {
@@ -2225,7 +2304,7 @@
       const blob = new Blob([JSON.stringify(brews, null, 2)], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `pourover-log-${today()}.json`;
+      a.download = `brewbook-${today()}.json`;
       a.click();
     };
     $('importBtn').onclick = () => $('importFile').click();
