@@ -18,6 +18,7 @@
       --accent: #8b5a3c;
       --accent-soft: #f1e6dc;
       --danger: #b23b3b;
+      --tabbar-h: 60px; /* height of the bottom navigation bar (plus the phone's safe area) */
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -41,7 +42,7 @@
     }
     .wrap {
       max-width: 960px; margin: 0 auto;
-      padding: 24px max(16px, env(safe-area-inset-right)) 64px max(16px, env(safe-area-inset-left));
+      padding: 24px max(16px, env(safe-area-inset-right)) calc(var(--tabbar-h) + 48px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
     }
 
     header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
@@ -94,53 +95,76 @@
     .chip { background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 10px; font-size: .8rem; }
     .stars { color: var(--accent); letter-spacing: 2px; }
     .empty { text-align: center; color: var(--muted); padding: 60px 0; }
+    /* A card with a photo: details on the left, square photo on the right */
+    .card.has-photo { display: flex; gap: 12px; }
+    .card-main { flex: 1; min-width: 0; }
+    .card-photo { flex: none; width: 96px; height: 96px; border-radius: 8px; overflow: hidden; background: var(--accent-soft); }
+    .card-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
 
     /* Grid / List switch: a single icon button showing the *other* view */
     .icon-btn { position: relative; display: flex; align-items: center; justify-content: center; padding: 8px 10px; }
     .icon-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
     /* An icon button whose panel or menu is open */
     .icon-btn[aria-expanded="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-    /* Small dot on an icon button: filters are in use, or (in red) syncing failed */
+    /* Small dot on an icon button: filters are in use */
     .icon-btn.has-badge::after {
       content: ''; position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%;
       background: var(--accent); box-shadow: 0 0 0 2px var(--card);
     }
-    .icon-btn.has-badge.warn::after { background: var(--danger); }
 
-    /* Account menu: drops down under the account button */
-    .menu-wrap { position: relative; }
-    .menu {
-      position: absolute; z-index: 20; top: calc(100% + 8px); right: 0;
-      width: min(280px, calc(100vw - 32px));
-      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
-      box-shadow: 0 8px 24px rgba(0,0,0,.14);
-      /* Closed: faded out and slightly shrunk toward the button */
-      opacity: 0; visibility: hidden; transform: translateY(-6px) scale(.97); transform-origin: top right;
-      transition: transform .18s cubic-bezier(.4, 0, .2, 1), opacity .15s ease, visibility 0s linear .18s;
-    }
-    .menu.open {
-      opacity: 1; visibility: visible; transform: none;
-      transition: transform .22s cubic-bezier(.2, .8, .2, 1), opacity .18s ease, visibility 0s;
-    }
-    /* Each block of the menu; new account features can be added as more sections */
-    .menu-section { padding: 12px 14px; }
-    .menu-section + .menu-section { border-top: 1px solid var(--line); }
-    .menu-section.actions { padding: 6px; }
-    .menu-label { font-size: .75rem; color: var(--muted); }
-    .menu-email { font-weight: 600; overflow-wrap: anywhere; }
-    .menu-status { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: .85rem; color: var(--muted); }
-    .menu-status::before { content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-    .menu-status:has(.err) { color: var(--danger); }
-    .menu-item {
+    /* Account page: a card split into sections; new account features can be added as more sections */
+    .panel { max-width: 480px; margin-top: 20px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+    .panel-section { padding: 14px 16px; }
+    .panel-section + .panel-section { border-top: 1px solid var(--line); }
+    .panel-section.actions { padding: 6px; }
+    .panel-label { font-size: .75rem; color: var(--muted); }
+    .panel-email { font-weight: 600; overflow-wrap: anywhere; }
+    .panel-status { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: .85rem; color: var(--muted); }
+    .panel-status::before { content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .panel-status:has(.err) { color: var(--danger); }
+    .panel-item {
       display: block; width: 100%; text-align: left; border: none; background: none; border-radius: 8px; padding: 10px;
     }
-    .menu-item:hover, .menu-item:focus-visible { background: var(--accent-soft); }
+    .panel-item:hover, .panel-item:focus-visible { background: var(--accent-soft); }
+
+    /* Coffee Setup page: placeholder until the feature is built */
+    .placeholder {
+      max-width: 480px; margin-top: 20px; padding: 40px 24px; text-align: center; color: var(--muted);
+      background: var(--card); border: 1px dashed var(--line); border-radius: 12px;
+    }
+    .placeholder svg { width: 40px; height: 40px; stroke: var(--accent); fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+    .placeholder h2 { margin: 8px 0 4px; font-size: 1.05rem; color: var(--text); }
+    .placeholder p { margin: 0; font-size: .9rem; }
+
+    /* Bottom navigation bar: always visible, sits above the phone's home-swipe area */
+    .tabbar {
+      position: fixed; z-index: 15; left: 0; right: 0; bottom: 0;
+      background: var(--card); border-top: 1px solid var(--line);
+      padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+    .tabbar-inner { display: flex; max-width: 480px; margin: 0 auto; }
+    .tab {
+      flex: 1; height: var(--tabbar-h); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+      color: var(--muted); text-decoration: none; font-size: .72rem; -webkit-tap-highlight-color: transparent;
+    }
+    .tab:hover { color: var(--text); }
+    .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; border-radius: 10px; }
+    .tab-icon { position: relative; display: flex; padding: 3px 18px; border-radius: 999px; transition: background-color .15s; }
+    .tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    /* The page you're on: accent colour with a soft pill behind its icon */
+    .tab[aria-current="page"] { color: var(--accent); font-weight: 600; }
+    .tab[aria-current="page"] .tab-icon { background: var(--accent-soft); }
+    /* Red dot on the Account tab when syncing failed */
+    .tab.has-badge .tab-icon::after {
+      content: ''; position: absolute; top: 2px; right: 14px; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--danger); box-shadow: 0 0 0 2px var(--card);
+    }
 
     /* Floating "+" button (phones only) with a menu that slides up out of it */
     .fab {
       display: none; position: fixed; z-index: 10;
       right: calc(20px + env(safe-area-inset-right));
-      bottom: calc(20px + env(safe-area-inset-bottom));
+      bottom: calc(var(--tabbar-h) + 16px + env(safe-area-inset-bottom));
     }
     .fab-btn {
       position: relative; z-index: 1; width: 56px; height: 56px; padding: 0; border-radius: 50%;
@@ -174,13 +198,10 @@
     @media (max-width: 640px) {
       .fab { display: block; }
       #newBtn, #importBtn { display: none; } /* the floating button covers these on phones */
-      .wrap { padding-bottom: calc(110px + env(safe-area-inset-bottom)); } /* last card stays clear of it */
-      /* The toolbar may wrap onto two lines, so line the account menu up with the page edge instead */
-      header { position: relative; }
-      .menu-wrap { position: static; }
+      #page-log { padding-bottom: calc(var(--tabbar-h) + 100px + env(safe-area-inset-bottom)); } /* last card stays clear of it */
     }
     @media (prefers-reduced-motion: reduce) {
-      .fab-item, .fab-btn svg, .menu, .filter-panel, .filters { transition-duration: .01s !important; transition-delay: 0s !important; }
+      .fab-item, .fab-btn svg, .filter-panel, .filters { transition-duration: .01s !important; transition-delay: 0s !important; }
     }
 
     /* List view (table) — scrolls sideways on its own on small screens */
@@ -223,6 +244,18 @@
     .rating-pick button { border: none; background: none; font-size: 1.5rem; padding: 0 2px; color: var(--line); }
     .rating-pick button.on { color: var(--accent); }
 
+    /* Photo picker in the form */
+    .photo-add {
+      width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 18px;
+      border: 1.5px dashed var(--line); background: var(--bg); color: var(--muted);
+    }
+    .photo-add svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .photo-add:hover, .photo-field.dragging .photo-add { border-color: var(--accent); color: var(--accent); }
+    .photo-preview { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+    .photo-preview img { display: block; width: 160px; height: 160px; object-fit: cover; border-radius: 10px; background: var(--accent-soft); }
+    .photo-field.dragging .photo-preview img { outline: 2px solid var(--accent); }
+    .photo-preview .toolbar { gap: 6px; }
+
     .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
     [hidden] { display: none !important; }
 
@@ -260,7 +293,9 @@
     </form>
   </div>
 
-  <div class="wrap" id="appView" hidden>
+  <div id="appView" hidden>
+  <!-- Page 1: Brew Log (the list of brews) -->
+  <section class="wrap" id="page-log">
     <header>
       <h1>Pourover <span>Log</span></h1>
       <div class="toolbar">
@@ -271,22 +306,6 @@
         <button id="exportBtn" class="icon-btn" title="Export a backup file" aria-label="Export a backup file">
           <svg viewBox="0 0 24 24" stroke-linejoin="round"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M8 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2"/></svg>
         </button>
-        <div class="menu-wrap" id="accountWrap">
-          <button type="button" class="icon-btn" id="accountBtn" title="Account" aria-label="Account" aria-expanded="false" aria-controls="accountMenu">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
-          </button>
-          <!-- Account menu. To add a feature, add another .menu-section, or a .menu-item button to the actions list -->
-          <div class="menu" id="accountMenu">
-            <div class="menu-section">
-              <div class="menu-label">Signed in as</div>
-              <div class="menu-email" id="userEmail"></div>
-              <div class="menu-status"><span id="syncStatus"></span></div>
-            </div>
-            <div class="menu-section actions">
-              <button type="button" class="menu-item danger" id="logoutBtn">Log out</button>
-            </div>
-          </div>
-        </div>
         <button id="importBtn" title="Load a backup file">Import</button>
         <input type="file" id="importFile" accept=".json" hidden>
         <button class="primary" id="newBtn">+ New brew</button>
@@ -334,6 +353,50 @@
         <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
       </button>
     </div>
+  </section>
+
+  <!-- Page 2: Coffee Setup (placeholder; your equipment will be managed here later) -->
+  <section class="wrap" id="page-setup" hidden>
+    <header><h1>Coffee Setup</h1></header>
+    <div class="placeholder">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16l-5 8H9z"/><path d="M10 14v2h4v-2M6 20h12"/></svg>
+      <h2>Coming soon</h2>
+      <p>Save your grinders, drippers, kettles and other gear here, so you can pick them quickly when logging a brew.</p>
+    </div>
+  </section>
+
+  <!-- Page 3: Account. To add a feature, add another .panel-section, or a .panel-item button to the actions list -->
+  <section class="wrap" id="page-account" hidden>
+    <header><h1>Account</h1></header>
+    <div class="panel">
+      <div class="panel-section">
+        <div class="panel-label">Signed in as</div>
+        <div class="panel-email" id="userEmail"></div>
+        <div class="panel-status"><span id="syncStatus"></span></div>
+      </div>
+      <div class="panel-section actions">
+        <button type="button" class="panel-item danger" id="logoutBtn">Log out</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Bottom navigation bar: each tab links to one of the pages above -->
+  <nav class="tabbar" aria-label="Main">
+    <div class="tabbar-inner">
+      <a class="tab" id="tab-log" href="#log">
+        <span class="tab-icon"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/></svg></span>
+        Brew Log
+      </a>
+      <a class="tab" id="tab-setup" href="#setup">
+        <span class="tab-icon"><svg viewBox="0 0 24 24"><path d="M4 6h16l-5 8H9z"/><path d="M10 14v2h4v-2M6 20h12"/></svg></span>
+        Coffee Setup
+      </a>
+      <a class="tab" id="tab-account" href="#account">
+        <span class="tab-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>
+        Account
+      </a>
+    </div>
+  </nav>
   </div>
 
   <!-- The add/edit form, shown as a popup -->
@@ -410,6 +473,25 @@
           <div style="margin-top:10px"><label>Tasting notes</label><textarea name="notes" placeholder="Jasmine, bergamot, clean finish…"></textarea></div>
           <div style="margin-top:10px"><label>Next time, change…</label><textarea name="nextTime" placeholder="Grind a little finer"></textarea></div>
         </fieldset>
+
+        <fieldset>
+          <legend>Photo</legend>
+          <div class="photo-field" id="photoField">
+            <button type="button" class="photo-add" id="photoAdd">
+              <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-9 8"/></svg>
+              Add a photo
+            </button>
+            <div class="photo-preview" id="photoPreview" hidden>
+              <img id="photoImg" alt="Photo of this brew">
+              <div class="toolbar">
+                <button type="button" class="small" id="photoChange">Change</button>
+                <button type="button" class="small danger" id="photoRemove">Remove</button>
+              </div>
+            </div>
+            <!-- No name, so it isn't saved with the form; the photo is handled separately -->
+            <input type="file" id="photoFile" accept="image/*" hidden>
+          </div>
+        </fieldset>
       </div>
 
       <div class="dlg-foot">
@@ -456,9 +538,8 @@
     function setStatus(text, isError = false) {
       $('syncStatus').textContent = text;
       $('syncStatus').className = isError ? 'err' : '';
-      // The status lives inside the account menu, so flag problems on its button too
-      $('accountBtn').classList.toggle('has-badge', isError);
-      $('accountBtn').classList.toggle('warn', isError);
+      // The status lives on the Account page, so flag problems on its tab too
+      $('tab-account').classList.toggle('has-badge', isError);
     }
 
     // ---------- Reading & writing brews online ----------
@@ -484,10 +565,89 @@
       return true;
     }
 
-    async function deleteBrewOnline(id) {
+    async function deleteBrewOnline(id, photo) {
       setStatus('Saving…');
       const { error } = await db.from('brews').delete().eq('id', id);
       setStatus(error ? 'Delete failed: check your connection' : 'Synced', !!error);
+      if (!error) deletePhotoOnline(photo);
+    }
+
+    // Saves a new or edited brew. If it has a new photo, that is uploaded first.
+    // oldPhoto is the photo the brew had before; it's deleted once it's no longer used.
+    async function saveBrew(brew, photoBlob, oldPhoto) {
+      const photo = brew.photo;
+      let photoSaved = true;
+      if (photoBlob) {
+        setStatus('Saving photo…');
+        photoSaved = await uploadPhoto(photo, photoBlob);
+      }
+      // Use the latest copy, in case the brew was changed or deleted while the photo uploaded
+      const latest = brews.find(b => b.id === brew.id);
+      if (!latest) return;
+      if (!photoSaved && latest.photo === photo) {
+        latest.photo = oldPhoto; // keep the brew, just without the new photo
+        cacheBrews();
+        render();
+      }
+      if (!await uploadBrews([latest])) return;
+      if (!photoSaved) return setStatus('Photo not saved: check your connection', true);
+      if (oldPhoto && oldPhoto !== latest.photo) deletePhotoOnline(oldPhoto);
+    }
+
+    // ---------- Photos ----------
+    // Photos are stored as files in Supabase Storage (not in the brew itself, which would make it
+    // too big to keep in this browser). A brew's `photo` is the file's name, like "<user id>/<random id>.jpg".
+    // The storage is private, so each photo is shown through a temporary link from Supabase.
+    const PHOTO_BUCKET = 'brew-photos';
+    const photoUrls = new Map(); // file name → link (null while asking for it, '' if the photo is missing)
+    let photoUrlsSince = Date.now();
+
+    async function uploadPhoto(path, blob) {
+      const { error } = await db.storage.from(PHOTO_BUCKET).upload(path, blob, { contentType: 'image/jpeg' });
+      return !error;
+    }
+
+    async function deletePhotoOnline(path) {
+      // If this fails, the only harm is an unused file left in storage
+      if (path) await db.storage.from(PHOTO_BUCKET).remove([path]);
+    }
+
+    // Ask Supabase for links to any photos we can't show yet, then redraw
+    async function loadPhotoUrls() {
+      // Links last a week; get fresh ones every day so an open tab never ends up with expired ones
+      if (Date.now() - photoUrlsSince > 24 * 60 * 60 * 1000) { photoUrls.clear(); photoUrlsSince = Date.now(); }
+      const missing = [...new Set(brews.map(b => b.photo).filter(p => p && !photoUrls.has(p)))];
+      if (!missing.length) return;
+      missing.forEach(p => photoUrls.set(p, null));
+      const { data, error } = await db.storage.from(PHOTO_BUCKET).createSignedUrls(missing, 7 * 24 * 60 * 60);
+      if (error) { missing.forEach(p => photoUrls.delete(p)); return; } // offline: try again next time
+      data.forEach(d => photoUrls.set(d.path, d.signedUrl || ''));
+      render();
+      drawFormPhoto();
+    }
+
+    // Phone photos are huge, so shrink them to at most 1200px on the long side and save as JPEG.
+    // (On iPhone, HEIC photos are converted to JPEG automatically when picked.)
+    async function shrinkPhoto(file) {
+      const MAX = 1200;
+      const src = URL.createObjectURL(file);
+      try {
+        const img = new Image();
+        img.src = src;
+        await img.decode();
+        const scale = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.naturalWidth * scale);
+        canvas.height = Math.round(img.naturalHeight * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff'; // see-through parts of PNGs become white instead of black
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        return await new Promise((resolve, reject) =>
+          canvas.toBlob(b => b ? resolve(b) : reject(new Error('Could not convert photo')), 'image/jpeg', 0.82));
+      } finally {
+        URL.revokeObjectURL(src);
+      }
     }
 
     // First sign-in on a browser that already has brews saved: offer to upload them
@@ -510,6 +670,7 @@
       $('authView').hidden = true;
       $('appView').hidden = false;
       $('userEmail').textContent = user.email;
+      showPage();
       brews = loadCache();
       render();
       await offerLocalUpload();
@@ -520,6 +681,9 @@
       $('appView').hidden = true;
       $('authView').hidden = false;
       brews = [];
+      photoUrls.clear();
+      // Start the next sign-in on the Brew Log page
+      if (location.hash) history.replaceState(null, '', location.pathname + location.search);
     }
 
     db.auth.onAuthStateChange((event, session) => {
@@ -559,7 +723,6 @@
     };
 
     $('logoutBtn').onclick = async () => {
-      setAccountOpen(false);
       try { localStorage.removeItem(cacheKey()); } catch {}
       await db.auth.signOut();
     };
@@ -670,8 +833,14 @@
             </tbody>
           </table>`;
       } else {
-        $('list').innerHTML = shown.map(b => `
-          <div class="card" data-id="${b.id}">
+        $('list').innerHTML = shown.map(b => {
+          // Photo on the right, only if the brew has one (and it wasn't found missing)
+          const photoUrl = b.photo ? photoUrls.get(b.photo) : '';
+          const photo = photoUrl === '' ? ''
+            : `<div class="card-photo">${photoUrl ? `<img src="${escapeHtml(photoUrl)}" alt="" loading="lazy">` : ''}</div>`;
+          return `
+          <div class="card${photo ? ' has-photo' : ''}" data-id="${b.id}">
+            <div class="card-main">
             <h3>${escapeHtml(b.bean)}</h3>
             <div class="sub">${escapeHtml([b.roaster, b.origin, b.variety, b.process].filter(Boolean).join(' · '))}</div>
             <div class="chips">
@@ -682,10 +851,14 @@
             </div>
             <div class="stars">${stars(b.rating)}</div>
             <div class="sub">${escapeHtml(toDisplayDate(b.brewDate))}</div>
-          </div>`).join('');
+            </div>
+            ${photo}
+          </div>`;
+        }).join('');
       }
 
       refreshDropdowns();
+      loadPhotoUrls();
     }
 
     // Fill the brewer filter + autocomplete with values you've used before
@@ -789,9 +962,59 @@
     }
     form.dose.oninput = form.water.oninput = updateRatio;
 
+    // The photo being edited in the form: its file name, plus the shrunk image if it was just picked
+    // (not uploaded until you press Save) and a link to show that image before it's uploaded.
+    const formPhoto = { path: '', blob: null, previewUrl: '' };
+
+    function drawFormPhoto() {
+      const has = !!formPhoto.path;
+      $('photoAdd').hidden = has;
+      $('photoPreview').hidden = !has;
+      const url = formPhoto.previewUrl || (has && photoUrls.get(formPhoto.path)) || '';
+      if (url) $('photoImg').src = url;
+      else $('photoImg').removeAttribute('src');
+    }
+
+    // Throw away a picked photo that was never saved
+    function discardPickedPhoto() {
+      if (formPhoto.previewUrl) URL.revokeObjectURL(formPhoto.previewUrl);
+      formPhoto.blob = null;
+      formPhoto.previewUrl = '';
+    }
+
+    async function pickPhoto(file) {
+      if (!file) return;
+      let blob;
+      try { blob = await shrinkPhoto(file); }
+      catch { return alert("That photo couldn't be opened. Try a JPEG or PNG."); }
+      discardPickedPhoto();
+      formPhoto.blob = blob;
+      formPhoto.previewUrl = URL.createObjectURL(blob);
+      formPhoto.path = `${user.id}/${crypto.randomUUID()}.jpg`; // a fresh name, so the old photo stays until Save
+      drawFormPhoto();
+    }
+
+    $('photoAdd').onclick = $('photoChange').onclick = () => $('photoFile').click();
+    $('photoFile').onchange = (e) => { pickPhoto(e.target.files[0]); e.target.value = ''; };
+    $('photoRemove').onclick = () => { discardPickedPhoto(); formPhoto.path = ''; drawFormPhoto(); };
+    $('dlg').addEventListener('close', discardPickedPhoto);
+
+    // On a computer you can also drag a photo onto the form
+    $('photoField').ondragover = (e) => { e.preventDefault(); $('photoField').classList.add('dragging'); };
+    $('photoField').ondragleave = () => $('photoField').classList.remove('dragging');
+    $('photoField').ondrop = (e) => {
+      e.preventDefault();
+      $('photoField').classList.remove('dragging');
+      pickPhoto(e.dataTransfer.files[0]);
+    };
+
     function openForm(brew, mode) {
       form.reset();
       $('pours').innerHTML = '';
+      discardPickedPhoto();
+      // "Brew again" starts without a photo: each photo belongs to one brew
+      formPhoto.path = mode === 'edit' ? (brew.photo || '') : '';
+      drawFormPhoto();
       editingId = mode === 'edit' ? brew.id : null;
       $('dlgTitle').textContent = mode === 'edit' ? 'Edit brew' : 'New brew';
       $('deleteBtn').style.display = $('dupBtn').style.display = mode === 'edit' ? '' : 'none';
@@ -821,14 +1044,23 @@
         return { t: t.value, g: g.value, note: note.value };
       }).filter(p => p.t || p.g || p.note);
       f.rating = currentRating;
+      f.photo = formPhoto.path;
       return f;
     }
 
     form.onsubmit = () => {
       const data = readForm();
-      let brew;
+      const photoBlob = formPhoto.blob;
+      if (photoBlob) {
+        // Show the picked photo on its card straight away, while it uploads
+        photoUrls.set(data.photo, formPhoto.previewUrl);
+        formPhoto.blob = null;
+        formPhoto.previewUrl = '';
+      }
+      let brew, oldPhoto = '';
       if (editingId) {
         const i = brews.findIndex(b => b.id === editingId);
+        oldPhoto = brews[i].photo || '';
         brew = brews[i] = { ...brews[i], ...data };
       } else {
         brew = { id: crypto.randomUUID(), ...data };
@@ -836,17 +1068,18 @@
       }
       cacheBrews();
       render();
-      uploadBrews([brew]);
+      saveBrew(brew, photoBlob, oldPhoto);
     };
 
     $('deleteBtn').onclick = () => {
       if (!confirm('Delete this brew?')) return;
       const id = editingId;
+      const photo = brews.find(b => b.id === id)?.photo;
       brews = brews.filter(b => b.id !== id);
       cacheBrews();
       $('dlg').close();
       render();
-      deleteBrewOnline(id);
+      deleteBrewOnline(id, photo);
     };
 
     $('dupBtn').onclick = () => {
@@ -880,22 +1113,35 @@
     }
     $('filterBtn').onclick = () => setFiltersOpen(!$('filterPanel').classList.contains('open'));
 
-    // ---------- Account menu ----------
-    function setAccountOpen(open) {
-      $('accountMenu').classList.toggle('open', open);
-      $('accountBtn').setAttribute('aria-expanded', open);
-    }
-    $('accountBtn').onclick = () => setAccountOpen(!$('accountMenu').classList.contains('open'));
+    // ---------- Pages & bottom navigation bar ----------
+    // The page you're on is kept in the address (#log, #setup, #account), so the back
+    // button and reloading the page work as you'd expect. Anything else shows the Brew Log.
+    const PAGES = ['log', 'setup', 'account'];
+    const scrollPositions = {};
+    let currentPage = null;
 
-    // Tapping anywhere else, or pressing Escape, closes the menus
+    function showPage() {
+      const hash = location.hash.slice(1);
+      const page = PAGES.includes(hash) ? hash : 'log';
+      if (currentPage) scrollPositions[currentPage] = scrollY;
+      PAGES.forEach(p => {
+        $(`page-${p}`).hidden = p !== page;
+        if (p === page) $(`tab-${p}`).setAttribute('aria-current', 'page');
+        else $(`tab-${p}`).removeAttribute('aria-current');
+      });
+      setFabOpen(false);
+      // Come back to where you were on each page (e.g. halfway down the brew list)
+      if (page !== currentPage) scrollTo(0, scrollPositions[page] || 0);
+      currentPage = page;
+    }
+    window.addEventListener('hashchange', showPage);
+
+    // Tapping anywhere else, or pressing Escape, closes the + menu
     document.addEventListener('click', (e) => {
       if (!$('fab').contains(e.target)) setFabOpen(false);
-      if (!$('accountWrap').contains(e.target)) setAccountOpen(false);
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key !== 'Escape') return;
-      setFabOpen(false);
-      if ($('accountMenu').classList.contains('open')) { setAccountOpen(false); $('accountBtn').focus(); }
+      if (e.key === 'Escape') setFabOpen(false);
     });
     $('list').onclick = (e) => {
       const item = e.target.closest('[data-id]');

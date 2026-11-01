@@ -22,6 +22,8 @@ Prefer a server over opening the file directly: sign-up confirmation emails redi
 
 **Backend (Supabase).** `supabase/setup.sql` creates one `brews` table: `id`, `user_id`, and a `data` jsonb column that holds the whole brew object minus `id`. Because of this, **new brew fields need no database migration**; just add them to the form. Row Level Security limits each user to their own rows, which is why the Supabase URL and publishable key can sit in the client code. Run the SQL by hand in the Supabase SQL Editor; it is safe to re-run.
 
+**Photos.** A brew's `photo` field is a file path (`<userId>/<uuid>.jpg`) in the private `brew-photos` Storage bucket, not the image itself, which keeps the localStorage cache small. The same SQL file sets up the bucket and its folder-per-user policies. Photos are shrunk to JPEG in the browser (`shrinkPhoto`) and uploaded only on Save (`saveBrew`), always under a fresh path, and a replaced photo is deleted afterwards. `loadPhotoUrls()` batches signed URLs into the `photoUrls` map and re-renders. JSON export includes only the paths, not the image files.
+
 **Sync flow.** The in-memory `brews` array is the source of truth for rendering:
 - On sign-in (`showSignedIn`), it first renders from a per-user localStorage cache (`pourover-log-cache-<userId>`), then calls `fetchBrews()` to replace it with the server copy. It fetches again whenever the tab becomes visible.
 - Edits are optimistic: mutate `brews` → `cacheBrews()` → `render()` → `uploadBrews([...])` / `deleteBrewOnline(id)` (upsert/delete by `id`). The `#syncStatus` element shows the result.
@@ -29,6 +31,8 @@ Prefer a server over opening the file directly: sign-up confirmation emails redi
 - JSON import/export uses the same brew objects. Import only adds brews whose `id` is not already present.
 
 **Auth.** `db.auth.onAuthStateChange` switches between `#authView` and `#appView`. It ignores token refreshes for the same user and defers work with `setTimeout(…, 0)` so it doesn't query Supabase inside the callback.
+
+**Pages.** `#appView` holds three `<section>` pages (`#page-log`, `#page-setup`, `#page-account`) and a fixed bottom `.tabbar`. The tabs are plain `#log` / `#setup` / `#account` links, and `showPage()` runs on `hashchange` (unknown hashes fall back to the log). Coffee Setup is a placeholder for now. The Account page holds the email, `#syncStatus` and logout. A sync error puts a red dot on the Account tab.
 
 **UI.** `render()` filters, sorts and redraws the whole card list (grid or list view, saved in localStorage as `pourover-log-view`) from `brews`. One `<dialog id="dlg">` handles new, edit and copy through `openForm(brew, mode)`. On phones, a floating `+` menu (`#fab`) duplicates the header's New/Import actions.
 

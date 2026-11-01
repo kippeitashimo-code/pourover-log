@@ -41,3 +41,28 @@ create policy "Users can delete their own brews"
   on public.brews for delete
   to authenticated
   using ((select auth.uid()) = user_id);
+
+-- Brew photos: stored as files in a private storage bucket. Each user's photos
+-- go in a folder named after their user id ("<user id>/<photo>.jpg"), and these
+-- rules only let people read, add and delete files in their own folder.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('brew-photos', 'brew-photos', false, 5242880, array['image/jpeg'])
+on conflict (id) do nothing;
+
+drop policy if exists "Users can read their own brew photos" on storage.objects;
+create policy "Users can read their own brew photos"
+  on storage.objects for select
+  to authenticated
+  using (bucket_id = 'brew-photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+drop policy if exists "Users can add their own brew photos" on storage.objects;
+create policy "Users can add their own brew photos"
+  on storage.objects for insert
+  to authenticated
+  with check (bucket_id = 'brew-photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+drop policy if exists "Users can delete their own brew photos" on storage.objects;
+create policy "Users can delete their own brew photos"
+  on storage.objects for delete
+  to authenticated
+  using (bucket_id = 'brew-photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
