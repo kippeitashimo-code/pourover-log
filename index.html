@@ -94,11 +94,24 @@
     /* Extra 3px around the inside so focus outlines aren't cut off */
     .filter-inner { min-height: 0; overflow: hidden; padding: 3px; margin: -3px; }
     .filters {
-      display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 10px; padding-top: 20px;
+      display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; padding-top: 20px;
       transform: translateY(-8px); transition: transform .3s cubic-bezier(.2, .8, .2, 1);
     }
     .filter-panel.open .filters { transform: none; }
     @media (max-width: 640px) { .filters { grid-template-columns: 1fr 1fr; } .filters .search { grid-column: 1 / -1; } }
+    /* Month calendar for the date filter: days with brews are tinted, other days stay plain */
+    .calendar { margin-top: 10px; margin-left: auto; width: min(320px, 100%); background: var(--card); border-radius: 16px; box-shadow: var(--shadow); padding: 12px; }
+    .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-weight: 600; font-size: .95rem; }
+    .cal-head button { padding: 4px 12px; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+    .cal-grid .wd { font-size: .7rem; color: var(--muted); padding: 4px 0; }
+    .cal-grid .d { aspect-ratio: 1; padding: 0; border-radius: 50%; background: none; color: var(--muted); font-size: .85rem; font-weight: 400; }
+    .cal-grid .d:disabled { cursor: default; opacity: .6; }
+    .cal-grid .d.has { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+    .cal-grid .d.has:hover { filter: brightness(.95); }
+    .cal-grid .d.picked { background: var(--accent); color: #fff; }
+    .cal-foot { display: flex; justify-content: flex-end; margin-top: 6px; }
+    .cal-foot button { padding: 4px 12px; font-size: .85rem; }
     #list { margin-top: 20px; }
 
     /* Recipe cards */
@@ -113,8 +126,13 @@
     .card .sub { color: var(--muted); font-size: .85rem; }
     .card h3 { overflow-wrap: anywhere; }
     /* Overall score as a bar along the card's top edge: left end 0, right end 10 */
-    .score-bar { position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--line); }
-    .score-bar span { display: block; height: 100%; background: var(--accent); }
+    /* (its colour goes from red at 0 to green at 10; thin gaps split it into 10 steps) */
+    .score-bar { position: absolute; top: 0; left: 0; right: 0; height: 8px; background: var(--line); }
+    .score-bar span { display: block; height: 100%; }
+    .score-bar::after {
+      content: ''; position: absolute; inset: 0;
+      background: repeating-linear-gradient(to right, transparent 0 calc(10% - 2px), var(--card) calc(10% - 2px) 10%);
+    }
     /* One section per brew date: the date, then that day's cards */
     .day + .day { margin-top: 28px; }
     .day-head { margin: 0 0 10px 4px; font-size: .95rem; font-weight: 600; }
@@ -129,7 +147,7 @@
     .card.has-side { display: flex; gap: 12px; }
     .card-main { flex: 1; min-width: 0; }
     .card-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
-    .card-side .radar { width: 150px; }
+    .card-side .radar { width: 150px; margin-top: auto; } /* sits at the bottom of the card */
     .card-side .radar text { font-size: 20px; } /* the small chart is drawn shrunk, so its letters start bigger */
 
     /* Pentagon chart of the five tasting scores */
@@ -276,8 +294,9 @@
     .dlg-body { padding: 16px 20px; max-height: 70vh; overflow-y: auto; }
     .dlg-foot { display: flex; justify-content: space-between; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--line); }
     fieldset { border: none; padding: 0; margin: 0 0 20px; }
-    /* Section titles in the form: small grey capitals, like iOS Settings */
-    legend { font-weight: 600; font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 10px; color: var(--muted); }
+    /* Section titles in the form: grey capitals with a small grey icon in front */
+    legend { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 1.17rem; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 12px; color: var(--muted); }
+    legend svg { flex: none; width: 1.15em; height: 1.15em; stroke: var(--muted); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 10px; }
     .ratio { font-size: .9rem; color: var(--muted); }
     .inline { display: flex; gap: 6px; }
@@ -285,8 +304,10 @@
     .cal { position: relative; flex: none; }
     .cal button { height: 100%; padding: 0 10px; display: flex; align-items: center; }
     .cal button svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; }
-    /* Invisible native date input, only used to show the calendar popup */
-    .cal input[type="date"] { position: absolute; inset: 0; opacity: 0; pointer-events: none; padding: 0; }
+    /* The form's calendar: any day can be picked, so days look like normal text */
+    .calendar.any-day .d { color: var(--text); }
+    .calendar.any-day .d:hover { background: var(--fill-hover); }
+    .calendar.any-day .d.picked { background: var(--accent); color: #fff; }
     .date-input:invalid { border-color: var(--danger); }
 
     /* Pour schedule rows */
@@ -394,17 +415,11 @@
         <input id="q" placeholder="Bean, roaster, origin, notes…">
       </div>
       <div>
-        <label for="fBrewer">Brewer</label>
-        <select id="fBrewer"><option value="">All</option></select>
-      </div>
-      <div>
-        <label for="fRating">Min overall</label>
-        <select id="fRating">
-          <option value="0">Any</option>
-          <option value="6">6+</option>
-          <option value="8">8+</option>
-          <option value="10">10</option>
-        </select>
+        <label for="fDate">Date</label>
+        <div class="inline">
+          <input id="fDate" inputmode="numeric" placeholder="yyyy/mm/dd" autocomplete="off">
+          <span class="cal"><button type="button" id="fDateCal" title="Pick from calendar" aria-label="Pick from calendar" aria-expanded="false" aria-controls="calendar"></button></span>
+        </div>
       </div>
       <div>
         <label for="sort">Sort</label>
@@ -415,6 +430,7 @@
         </select>
       </div>
     </div>
+    <div class="calendar" id="calendar" hidden></div>
     </div></div>
 
     <div id="list"></div>
@@ -480,14 +496,14 @@
       <div class="dlg-body">
         <div class="radar-wrap" id="formRadar"></div>
         <fieldset class="tasting">
-          <legend>Tasting</legend>
+          <legend><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10h13v4a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 11h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M8.5 3.5v3M12.5 3.5v3"/></svg>Tasting</legend>
           <div id="scales"></div>
           <div style="margin-top:10px"><label>Tasting notes</label><textarea name="notes" rows="3" placeholder="e.g. Jasmine, peach, sweet clean finish"></textarea></div>
           <div style="margin-top:10px"><label>Next time, change…</label><textarea name="nextTime" placeholder="e.g. Lower the temperature"></textarea></div>
         </fieldset>
 
         <fieldset>
-          <legend>Coffee</legend>
+          <legend><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="12" rx="6" ry="9" transform="rotate(40 12 12)"/><path d="M7.4 17.6c2.6-1.4 2.4-4 4.6-5.6s2-4.2 4.6-5.6"/></svg>Coffee</legend>
           <div class="row">
             <div><label>Bean / name</label><input name="bean" required placeholder="e.g. Kochere"></div>
             <div><label>Roaster</label><input name="roaster"></div>
@@ -499,6 +515,7 @@
             <div><label>Roast date</label><div class="inline date-field"><input name="roastDate" class="date-input" inputmode="numeric" placeholder="yyyy/mm/dd"></div></div>
             <div><label>Brew date</label><div class="inline date-field"><input name="brewDate" class="date-input" inputmode="numeric" placeholder="yyyy/mm/dd"></div></div>
           </div>
+          <div class="calendar" id="formCal" hidden></div>
           <datalist id="processList">
             <option>Washed</option><option>Natural</option><option>Honey</option><option>Anaerobic</option>
           </datalist>
@@ -507,7 +524,7 @@
         </fieldset>
 
         <fieldset>
-          <legend>Recipe</legend>
+          <legend><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2.5h6V4"/><path d="M9 10h6M9 14h6M9 18h3"/></svg>Recipe</legend>
           <div class="row">
             <div><label>Dose (g)</label><input name="dose" type="number" step="0.1" min="0"></div>
             <div><label>Water (g)</label><input name="water" type="number" step="1" min="0"></div>
@@ -529,7 +546,7 @@
         </fieldset>
 
         <fieldset>
-          <legend>Equipment</legend>
+          <legend><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16l-5 9H9z"/><path d="M9 14v3h6v-3"/><path d="M5 20h14"/></svg>Equipment</legend>
           <!-- Choices come from Coffee Setup; filled in by fillGearSelect() -->
           <div class="row">
             <div><label>Brewer</label><select name="brewerId"></select></div>
@@ -547,7 +564,7 @@
         </fieldset>
 
         <fieldset>
-          <legend>Pour schedule</legend>
+          <legend><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3s-6 7-6 11a6 6 0 0 0 12 0c0-4-6-11-6-11z"/></svg>Pour schedule</legend>
           <div class="pour" style="font-size:.8rem;color:var(--muted)">
             <span>Time</span><span>To (g)</span><span>Note</span><span></span>
           </div>
@@ -556,7 +573,7 @@
         </fieldset>
 
         <fieldset>
-          <legend>Photo</legend>
+          <legend><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Photo</legend>
           <div class="photo-field" id="photoField">
             <button type="button" class="photo-add" id="photoAdd">
               <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-9 8"/></svg>
@@ -916,7 +933,11 @@
     ];
 
     // ---------- Small helpers ----------
-    const today = () => new Date().toISOString().slice(0, 10);
+    // Today's date on this device as "YYYY-MM-DD" (not UTC, which can already be tomorrow)
+    const today = () => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
     // Dates are saved as 2026-10-23 (sorts correctly) but shown as 2026/10/23
     const toDisplayDate = (d) => (d || '').replaceAll('-', '/');
     const toSavedDate = (d) => (d || '').replaceAll('/', '-');
@@ -925,7 +946,8 @@
     // Older brews had a 1–5 star "rating" instead of "overall", so double it
     const overallOf = (b) => 'overall' in b ? b.overall || 0 : (b.rating || 0) * 2;
     // Overall score as a bar along the card's top edge (nothing when not scored)
-    const scoreBarHtml = (n) => !n ? '' : `<div class="score-bar" role="img" aria-label="Overall ${n}/10" title="Overall ${n}/10"><span style="width:${n * 10}%"></span></div>`;
+    // Its colour slides from red (0) through yellow to green (10)
+    const scoreBarHtml = (n) => !n ? '' : `<div class="score-bar" role="img" aria-label="Overall ${n}/10" title="Overall ${n}/10"><span style="width:${n * 10}%; background:hsl(${n * 12} 72% 46%)"></span></div>`;
     const tasteLine = (b) => TASTES.filter(([key]) => b[key]).map(([key, label]) => `${label} ${b[key]}`).join(' · ');
     // Pentagon chart of the five tasting scores. Corners go clockwise from the top
     // (Body, Acidity, Sweetness, Bitterness, Clarity); 10 is the outer edge, unscored sits in the middle.
@@ -1010,17 +1032,16 @@
 
     function render() {
       const q = $('q').value.trim().toLowerCase();
-      const brewer = $('fBrewer').value;
-      const minRating = Number($('fRating').value);
+      // Date filter: a full date shows that day; a part like "2026/10" shows the whole month
+      const day = $('fDate').value.trim();
       // A dot on the filter button reminds you some brews are hidden, even when the panel is closed
-      $('filterBtn').classList.toggle('has-badge', !!(q || brewer || minRating));
+      $('filterBtn').classList.toggle('has-badge', !!(q || day));
 
       let shown = brews.filter(b => {
         const haystack = [b.bean, b.roaster, b.origin, b.variety, b.process, b.brewer, b.grinder, b.filter,
           ...(b.others || []).map(o => o.name), b.notes].join(' ').toLowerCase();
         return (!q || haystack.includes(q))
-          && (!brewer || b.brewer === brewer)
-          && overallOf(b) >= minRating;
+          && (!day || toDisplayDate(b.brewDate).startsWith(day));
       });
 
       const sort = $('sort').value;
@@ -1051,17 +1072,95 @@
           </section>`).join('');
       }
 
+      if (!$('calendar').hidden) filterCal.draw(); // brews may have been added or moved to another day
       refreshDropdowns();
       loadPhotoUrls();
       renderSetup(); // it shows how many brews use each item
     }
 
-    // Fill the brewer filter + variety autocomplete with values you've used before
+    // ---------- Month calendar (date filter and the form's date fields) ----------
+    const CAL_ICON = '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
+    const pad2 = (n) => String(n).padStart(2, '0');
+    // Draws a month calendar into `box` and returns { open, close, draw, month }.
+    //   input:     the yyyy/mm/dd text field it reads the picked day from
+    //   onlyBrewDays: true → only days with brews are tinted and can be picked
+    //   clearLabel: text of the button that empties the field
+    //   onPick(date): called with "YYYY-MM-DD", or '' when cleared
+    function makeCalendar(box, { input, onlyBrewDays, clearLabel, onPick }) {
+      const cal = { month: '' }; // the month on show, as "YYYY-MM"
+      cal.draw = () => {
+        const [y, m] = cal.month.split('-').map(Number);
+        const brewDays = new Set(brews.map(b => b.brewDate).filter(Boolean));
+        // The typed day is selected; with no full date typed, today is selected
+        const typed = toSavedDate(input().value.trim());
+        const picked = /^\d{4}-\d{2}-\d{2}$/.test(typed) ? typed : today();
+        const blanks = new Date(y, m - 1, 1).getDay(); // empty cells before the 1st (weeks start on Sunday)
+        const daysInMonth = new Date(y, m, 0).getDate();
+        const title = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        let cells = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(w => `<span class="wd">${w}</span>`).join('');
+        cells += '<span></span>'.repeat(blanks);
+        for (let d = 1; d <= daysInMonth; d++) {
+          const date = `${y}-${pad2(m)}-${pad2(d)}`;
+          const has = onlyBrewDays && brewDays.has(date);
+          const off = onlyBrewDays && !has;
+          cells += `<button type="button" class="d${has ? ' has' : ''}${date === picked ? ' picked' : ''}" data-date="${date}"${off ? ' disabled' : ''}>${d}</button>`;
+        }
+        box.classList.toggle('any-day', !onlyBrewDays);
+        box.innerHTML = `
+          <div class="cal-head">
+            <button type="button" data-step="-1" aria-label="Previous month">‹</button>
+            <span>${title}</span>
+            <button type="button" data-step="1" aria-label="Next month">›</button>
+          </div>
+          <div class="cal-grid">${cells}</div>
+          <div class="cal-foot"><button type="button" data-clear>${clearLabel}</button></div>`;
+      };
+      cal.open = () => {
+        // Start on the typed month, otherwise this month
+        const typed = toSavedDate(input().value.trim());
+        cal.month = (/^\d{4}-\d{2}/.test(typed) ? typed : today()).slice(0, 7);
+        cal.draw();
+        box.hidden = false;
+      };
+      cal.close = () => { box.hidden = true; };
+      box.onclick = (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        if (btn.dataset.step) {
+          const [y, m] = cal.month.split('-').map(Number);
+          const next = new Date(y, m - 1 + Number(btn.dataset.step), 1);
+          cal.month = `${next.getFullYear()}-${pad2(next.getMonth() + 1)}`;
+          cal.draw();
+          return;
+        }
+        input().value = btn.dataset.date ? toDisplayDate(btn.dataset.date) : '';
+        cal.close();
+        onPick(btn.dataset.date || '');
+      };
+      return cal;
+    }
+
+    // Date filter: only days with brews can be picked
+    const filterCal = makeCalendar($('calendar'), {
+      input: () => $('fDate'), onlyBrewDays: true, clearLabel: 'Show all dates',
+      onPick: () => { $('fDateCal').setAttribute('aria-expanded', false); render(); },
+    });
+    $('fDateCal').innerHTML = CAL_ICON;
+    $('fDateCal').onclick = () => {
+      if ($('calendar').hidden) filterCal.open(); else filterCal.close();
+      $('fDateCal').setAttribute('aria-expanded', !$('calendar').hidden);
+    };
+    // Typing a date: slashes are added for you, and the list narrows as you type
+    $('fDate').oninput = () => {
+      $('fDate').value = formatDate($('fDate').value);
+      const typed = toSavedDate($('fDate').value);
+      if (!$('calendar').hidden && /^\d{4}-\d{2}/.test(typed)) filterCal.month = typed.slice(0, 7);
+      render();
+    };
+
+    // Fill the variety autocomplete with values you've used before
     function refreshDropdowns() {
       const unique = (key) => [...new Set(brews.map(b => b[key]).filter(Boolean))].sort();
-      const current = $('fBrewer').value;
-      $('fBrewer').innerHTML = '<option value="">All</option>' +
-        unique('brewer').map(v => `<option ${v === current ? 'selected' : ''}>${escapeHtml(v)}</option>`).join('');
       $('varietyList').innerHTML = [...new Set([...unique('variety'), ...VARIETIES])].map(v => `<option>${escapeHtml(v)}</option>`).join('');
     }
 
@@ -1169,22 +1268,36 @@
     form.addEventListener('input', (e) => {
       const el = e.target;
       if (el.classList.contains('time-input')) el.value = formatTime(el.value);
-      if (el.classList.contains('date-input')) { el.value = formatDate(el.value); checkDate(el); }
+      if (el.classList.contains('date-input')) {
+        el.value = formatDate(el.value);
+        checkDate(el);
+        // An open calendar follows a full date as you type it
+        if (!$('formCal').hidden && calField === el && isValidDate(el.value) && el.value) {
+          formCal.month = toSavedDate(el.value).slice(0, 7);
+          formCal.draw();
+        }
+      }
     });
 
-    // Add a calendar button next to each date field
-    const CAL_ICON = '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>';
+    // Add a calendar button next to each date field. Both fields share one calendar,
+    // shown under the date row; it fills in whichever field's button was pressed.
+    let calField = null; // the date field the calendar is filling in
+    const formCal = makeCalendar($('formCal'), {
+      input: () => calField, onlyBrewDays: false, clearLabel: 'Clear',
+      onPick: () => checkDate(calField),
+    });
     document.querySelectorAll('.date-field').forEach(field => {
       const text = field.querySelector('.date-input');
       const cal = document.createElement('span');
       cal.className = 'cal';
-      cal.innerHTML = `<button type="button" title="Pick from calendar">${CAL_ICON}</button><input type="date" tabindex="-1">`;
-      const picker = cal.querySelector('input');
+      cal.innerHTML = `<button type="button" title="Pick from calendar" aria-label="Pick from calendar" aria-controls="formCal">${CAL_ICON}</button>`;
       cal.querySelector('button').onclick = () => {
-        picker.value = isValidDate(text.value) ? toSavedDate(text.value) : '';
-        try { picker.showPicker(); } catch { picker.focus(); }
+        // Pressing the same button again closes it; the other field's button switches over
+        if (!$('formCal').hidden && calField === text) return formCal.close();
+        calField = text;
+        formCal.open();
+        $('formCal').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       };
-      picker.onchange = () => { text.value = toDisplayDate(picker.value); checkDate(text); };
       field.appendChild(cal);
     });
 
@@ -1259,9 +1372,9 @@
       $('dlgTitle').textContent = mode === 'edit' ? 'Edit brew' : 'New brew';
       $('deleteBtn').style.display = $('dupBtn').style.display = mode === 'edit' ? '' : 'none';
 
-      // New brews default to whichever temp unit you used last
-      const lastUnit = brews.length ? brews[brews.length - 1].tempUnit : null;
-      const data = brew || { brewDate: today(), tempUnit: lastUnit || 'C', pours: [{ t: '0:00', g: '', note: 'bloom' }], ...lastGearChoice() };
+      formCal.close();
+      // New brews start in °F (switching to °C converts the number)
+      const data = brew || { brewDate: today(), tempUnit: 'F', pours: [{ t: '0:00', g: '', note: 'bloom' }], ...lastGearChoice() };
       for (const el of form.elements) {
         if (el.name && el.name in data) el.value = data[el.name] ?? '';
       }
@@ -1731,7 +1844,7 @@
       const item = e.target.closest('[data-id]');
       if (item) openForm(brews.find(b => b.id === item.dataset.id), 'edit');
     };
-    ['q', 'fBrewer', 'fRating', 'sort'].forEach(id => $(id).oninput = render);
+    ['q', 'sort'].forEach(id => $(id).oninput = render);
 
     // ---------- Backup: export / import ----------
     $('exportBtn').onclick = () => {
