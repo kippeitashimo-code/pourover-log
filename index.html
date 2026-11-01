@@ -68,14 +68,24 @@
     h1 span { color: var(--accent); }
     .brand { font-family: "Roboto Slab", Rockwell, Georgia, serif; letter-spacing: -.01em; } /* the Brewbook logo */
     /* The logo at the top of every page, above each page's own heading */
-    /* It stays put at the top, with each page's heading row stuck just below it; the rest slides underneath */
+    /* It stays put at the top, with each page's heading row stuck just below it; the rest slides underneath.
+       Scrolling down slides the logo away and the heading row moves up into its place; scrolling up brings it back. */
     .brandbar {
       position: sticky; top: 0; z-index: 6; height: var(--brandbar-h);
       padding: max(20px, env(safe-area-inset-top)) 16px 0; text-align: center;
+      transition: transform .25s cubic-bezier(.2, .8, .2, 1);
     }
+    .brand-away .brandbar { transform: translateY(-100%); }
     .brandbar .brand { font-size: 2.3rem; font-weight: 700; line-height: 1.2; } /* 1.2× the page headings */
     #appView { --brandbar-h: calc(max(20px, env(safe-area-inset-top)) + 2.76rem); }
-    #appView header { position: sticky; top: var(--brandbar-h); z-index: 5; padding: 12px 0; margin-top: -12px; } /* -12px cancels the page's top padding, so it starts right where it sticks */
+    #appView header { position: sticky; top: var(--brandbar-h); z-index: 5; padding: 12px 0; margin-top: -12px; transition: top .25s cubic-bezier(.2, .8, .2, 1); } /* -12px cancels the page's top padding, so it starts right where it sticks */
+    .brand-away #appView header { top: env(safe-area-inset-top); }
+    /* With the logo away, this strip still covers the phone's status bar area so cards don't show through it */
+    #appView::before {
+      content: ''; position: fixed; z-index: 7; top: 0; left: 0; right: 0; height: env(safe-area-inset-top);
+      background: color-mix(in srgb, var(--bg) 85%, transparent);
+      -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+    }
     .brandbar, #appView header {
       background: color-mix(in srgb, var(--bg) 85%, transparent);
       -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
@@ -250,11 +260,7 @@
     .tabbar {
       position: fixed; z-index: 15; left: 0; right: 0; bottom: 0; pointer-events: none;
       padding: 0 max(16px, env(safe-area-inset-right)) var(--tabbar-gap) max(16px, env(safe-area-inset-left));
-      transition: transform .25s cubic-bezier(.2, .8, .2, 1);
     }
-    /* Scrolling down slides the bar away (and the + button down with it); scrolling up brings it back */
-    .bar-away .tabbar { transform: translateY(calc(100% + 8px)); }
-    .bar-away .fab { transform: translateY(var(--tabbar-h)); }
     .tabbar-inner {
       display: flex; max-width: 480px; margin: 0 auto; padding: 4px; pointer-events: auto;
       background: var(--bar-bg); border: 1px solid var(--line); border-radius: 999px;
@@ -282,7 +288,6 @@
       display: none; position: fixed; z-index: 10;
       right: calc(20px + env(safe-area-inset-right));
       bottom: calc(var(--tabbar-h) + 16px + var(--tabbar-gap));
-      transition: transform .25s cubic-bezier(.2, .8, .2, 1);
     }
     .fab-btn {
       position: relative; z-index: 1; width: 56px; height: 56px; padding: 0; border-radius: 50%;
@@ -319,7 +324,7 @@
       #page-log, #page-beans, #page-setup { padding-bottom: calc(var(--tabbar-h) + 100px + var(--tabbar-gap)); } /* last item stays clear of it */
     }
     @media (prefers-reduced-motion: reduce) {
-      .fab-item, .fab-btn svg, .filter-panel, .filters, .tabbar, .fab { transition-duration: .01s !important; transition-delay: 0s !important; }
+      .fab-item, .fab-btn svg, .filter-panel, .filters, .brandbar, #appView header { transition-duration: .01s !important; transition-delay: 0s !important; }
     }
 
     /* Form popup (dialog) */
@@ -2260,15 +2265,15 @@
         else $(`tab-${p}`).removeAttribute('aria-current');
       });
       setFabOpen(false);
-      setBarAway(false);
+      setBrandAway(false);
       // Come back to where you were on each page (e.g. halfway down the brew list)
       if (page !== currentPage) scrollTo(0, scrollPositions[page] || 0);
       currentPage = page;
     }
     window.addEventListener('hashchange', showPage);
 
-    // The bottom bar hides while you scroll down and comes back as soon as you scroll up
-    function setBarAway(away) { document.body.classList.toggle('bar-away', away); }
+    // The Brewbook logo at the top hides while you scroll down and comes back as soon as you scroll up
+    function setBrandAway(away) { document.body.classList.toggle('brand-away', away); }
     let lastScrollY = scrollY, scrollQueued = false;
     window.addEventListener('scroll', () => {
       if (scrollQueued) return;
@@ -2276,15 +2281,13 @@
       requestAnimationFrame(() => {
         scrollQueued = false;
         const y = scrollY, moved = y - lastScrollY;
-        if (y < 60) setBarAway(false);           // near the top: always shown
-        else if (moved > 8) setBarAway(true);    // scrolling down
-        else if (moved < -8) setBarAway(false);  // scrolling up
+        if (y < 60) setBrandAway(false);           // near the top: always shown
+        else if (moved > 8) setBrandAway(true);    // scrolling down
+        else if (moved < -8) setBrandAway(false);  // scrolling up
         else return;                             // tiny move: wait until it adds up
         lastScrollY = y;
       });
     }, { passive: true });
-    // Tabbing to the bar with the keyboard shows it again
-    document.querySelector('.tabbar').addEventListener('focusin', () => setBarAway(false));
 
     // Tapping anywhere else, or pressing Escape, closes the + menu
     document.addEventListener('click', (e) => {
