@@ -749,6 +749,24 @@
         </div>
         <div class="calendar" id="beanCal" hidden></div>
         <div><label>Notes</label><textarea name="notes" placeholder="Where you bought it, price, farm…"></textarea></div>
+        <div style="margin-top:10px">
+          <label>Photo</label>
+          <div class="photo-field" id="beanPhotoField">
+            <button type="button" class="photo-add" id="beanPhotoAdd">
+              <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-9 8"/></svg>
+              Add a photo
+            </button>
+            <div class="photo-preview" id="beanPhotoPreview" hidden>
+              <img id="beanPhotoImg" alt="Photo of this bean">
+              <div class="toolbar">
+                <button type="button" class="small" id="beanPhotoChange">Change</button>
+                <button type="button" class="small danger" id="beanPhotoRemove">Remove</button>
+              </div>
+            </div>
+            <!-- No name, so it isn't saved with the form; the photo is handled separately -->
+            <input type="file" id="beanPhotoFile" accept="image/*" hidden>
+          </div>
+        </div>
       </div>
 
       <div class="dlg-foot">
@@ -886,6 +904,7 @@
       setStatus('Saving…');
       const { error } = await db.from(table).delete().eq('id', id);
       setStatus(error ? 'Delete failed: check your connection' : 'Synced', !!error);
+      return !error;
     }
 
     async function deleteBrewOnline(id, photo) {
@@ -895,31 +914,36 @@
       if (!error) deletePhotoOnline(photo);
     }
 
-    // Saves a new or edited brew. If it has a new photo, that is uploaded first.
-    // oldPhoto is the photo the brew had before; it's deleted once it's no longer used.
-    async function saveBrew(brew, photoBlob, oldPhoto) {
-      const photo = brew.photo;
+    // Saves a new or edited brew or bean. If it has a new photo, that is uploaded first.
+    // oldPhoto is the photo it had before; it's deleted once it's no longer used.
+    async function saveWithPhoto(item, photoBlob, oldPhoto, { find, cache, upload }) {
+      const photo = item.photo;
       let photoSaved = true;
       if (photoBlob) {
         setStatus('Saving photo…');
         photoSaved = await uploadPhoto(photo, photoBlob);
       }
-      // Use the latest copy, in case the brew was changed or deleted while the photo uploaded
-      const latest = brews.find(b => b.id === brew.id);
+      // Use the latest copy, in case it was changed or deleted while the photo uploaded
+      const latest = find(item.id);
       if (!latest) return;
       if (!photoSaved && latest.photo === photo) {
-        latest.photo = oldPhoto; // keep the brew, just without the new photo
-        cacheBrews();
+        latest.photo = oldPhoto; // keep the brew or bean, just without the new photo
+        cache();
         render();
       }
-      if (!await uploadBrews([latest])) return;
+      if (!await upload([latest])) return;
       if (!photoSaved) return setStatus('Photo not saved: check your connection', true);
       if (oldPhoto && oldPhoto !== latest.photo) deletePhotoOnline(oldPhoto);
     }
 
+    const saveBrew = (brew, photoBlob, oldPhoto) => saveWithPhoto(brew, photoBlob, oldPhoto,
+      { find: (id) => brews.find(b => b.id === id), cache: cacheBrews, upload: uploadBrews });
+    const saveBean = (bean, photoBlob, oldPhoto) => saveWithPhoto(bean, photoBlob, oldPhoto,
+      { find: (id) => beans.find(b => b.id === id), cache: cacheBeans, upload: uploadBeans });
+
     // ---------- Photos ----------
-    // Photos are stored as files in Supabase Storage (not in the brew itself, which would make it
-    // too big to keep in this browser). A brew's `photo` is the file's name, like "<user id>/<random id>.jpg".
+    // Photos are stored as files in Supabase Storage (not in the brew or bean itself, which would make it
+    // too big to keep in this browser). A brew's or bean's `photo` is the file's name, like "<user id>/<random id>.jpg".
     // The storage is private, so each photo is shown through a temporary link from Supabase.
     const PHOTO_BUCKET = 'brew-photos';
     const photoUrls = new Map(); // file name → link (null while asking for it, '' if the photo is missing)
@@ -939,14 +963,15 @@
     async function loadPhotoUrls() {
       // Links last a week; get fresh ones every day so an open tab never ends up with expired ones
       if (Date.now() - photoUrlsSince > 24 * 60 * 60 * 1000) { photoUrls.clear(); photoUrlsSince = Date.now(); }
-      const missing = [...new Set(brews.map(b => b.photo).filter(p => p && !photoUrls.has(p)))];
+      const missing = [...new Set([...brews, ...beans].map(b => b.photo).filter(p => p && !photoUrls.has(p)))];
       if (!missing.length) return;
       missing.forEach(p => photoUrls.set(p, null));
       const { data, error } = await db.storage.from(PHOTO_BUCKET).createSignedUrls(missing, 7 * 24 * 60 * 60);
       if (error) { missing.forEach(p => photoUrls.delete(p)); return; } // offline: try again next time
       data.forEach(d => photoUrls.set(d.path, d.signedUrl || ''));
       render();
-      drawFormPhoto();
+      formPhoto.draw();
+      beanPhoto.draw();
     }
 
     // Phone photos are huge, so shrink them to at most 1200px on the long side and save as JPEG.
@@ -1165,12 +1190,16 @@
       return `${escapeHtml(toDisplayDate(date))}${weekday === 'Invalid Date' ? '' : ` <span>${weekday}</span>`}`;
     }
 
+    // Photo for the right side of a card ('' if there's none, or it was found missing)
+    function cardPhotoHtml(path) {
+      const url = path ? photoUrls.get(path) : '';
+      return url === '' ? ''
+        : `<div class="card-photo">${url ? `<img src="${escapeHtml(url)}" alt="" loading="lazy">` : ''}</div>`;
+    }
+
     // One recipe card
     function cardHtml(b) {
-      // Photo on the right, only if the brew has one (and it wasn't found missing)
-      const photoUrl = b.photo ? photoUrls.get(b.photo) : '';
-      const photo = photoUrl === '' ? ''
-        : `<div class="card-photo">${photoUrl ? `<img src="${escapeHtml(photoUrl)}" alt="" loading="lazy">` : ''}</div>`;
+      const photo = cardPhotoHtml(b.photo);
       // Taste chart under the photo, only if at least one taste was scored
       const radar = TASTES.some(([key]) => tasteOf(b, key)) ? radarSvg(b) : '';
       return `
@@ -1508,59 +1537,77 @@
     }
     form.dose.oninput = form.water.oninput = updateRatio;
 
-    // The photo being edited in the form: its file name, plus the shrunk image if it was just picked
-    // (not uploaded until you press Save) and a link to show that image before it's uploaded.
-    const formPhoto = { path: '', blob: null, previewUrl: '' };
+    // A photo picker in a popup form (the brew form and the bean form each have one).
+    // `path` is the photo's file name. A just-picked photo is kept as a shrunk image (`blob`,
+    // not uploaded until you press Save) with a link to show it before it's uploaded (`previewUrl`).
+    // The parts are found by id: "photoAdd", "photoImg"… or "beanPhotoAdd", "beanPhotoImg"…
+    function makePhotoPicker(prefix, dlg) {
+      const el = (name) => $(prefix + name);
+      const p = { path: '', blob: null, previewUrl: '' };
 
-    function drawFormPhoto() {
-      const has = !!formPhoto.path;
-      $('photoAdd').hidden = has;
-      $('photoPreview').hidden = !has;
-      const url = formPhoto.previewUrl || (has && photoUrls.get(formPhoto.path)) || '';
-      if (url) $('photoImg').src = url;
-      else $('photoImg').removeAttribute('src');
+      p.draw = () => {
+        const has = !!p.path;
+        el('Add').hidden = has;
+        el('Preview').hidden = !has;
+        const url = p.previewUrl || (has && photoUrls.get(p.path)) || '';
+        if (url) el('Img').src = url;
+        else el('Img').removeAttribute('src');
+      };
+      // Throw away a picked photo that was never saved
+      p.discard = () => {
+        if (p.previewUrl) URL.revokeObjectURL(p.previewUrl);
+        p.blob = null;
+        p.previewUrl = '';
+      };
+      // When the form opens: show the photo it already has (if any)
+      p.start = (path) => { p.discard(); p.path = path || ''; p.draw(); };
+      // On Save: hands over the picked image to upload, and shows it on its card straight away
+      p.take = () => {
+        const blob = p.blob;
+        if (blob) {
+          photoUrls.set(p.path, p.previewUrl);
+          p.blob = null;
+          p.previewUrl = '';
+        }
+        return blob;
+      };
+
+      async function pick(file) {
+        if (!file) return;
+        let blob;
+        try { blob = await shrinkPhoto(file); }
+        catch { return alert("That photo couldn't be opened. Try a JPEG or PNG."); }
+        p.discard();
+        p.blob = blob;
+        p.previewUrl = URL.createObjectURL(blob);
+        p.path = `${user.id}/${crypto.randomUUID()}.jpg`; // a fresh name, so the old photo stays until Save
+        p.draw();
+      }
+
+      el('Add').onclick = el('Change').onclick = () => el('File').click();
+      el('File').onchange = (e) => { pick(e.target.files[0]); e.target.value = ''; };
+      el('Remove').onclick = () => { p.discard(); p.path = ''; p.draw(); };
+      dlg.addEventListener('close', p.discard);
+
+      // On a computer you can also drag a photo onto the form
+      const field = el('Field');
+      field.ondragover = (e) => { e.preventDefault(); field.classList.add('dragging'); };
+      field.ondragleave = () => field.classList.remove('dragging');
+      field.ondrop = (e) => {
+        e.preventDefault();
+        field.classList.remove('dragging');
+        pick(e.dataTransfer.files[0]);
+      };
+      return p;
     }
-
-    // Throw away a picked photo that was never saved
-    function discardPickedPhoto() {
-      if (formPhoto.previewUrl) URL.revokeObjectURL(formPhoto.previewUrl);
-      formPhoto.blob = null;
-      formPhoto.previewUrl = '';
-    }
-
-    async function pickPhoto(file) {
-      if (!file) return;
-      let blob;
-      try { blob = await shrinkPhoto(file); }
-      catch { return alert("That photo couldn't be opened. Try a JPEG or PNG."); }
-      discardPickedPhoto();
-      formPhoto.blob = blob;
-      formPhoto.previewUrl = URL.createObjectURL(blob);
-      formPhoto.path = `${user.id}/${crypto.randomUUID()}.jpg`; // a fresh name, so the old photo stays until Save
-      drawFormPhoto();
-    }
-
-    $('photoAdd').onclick = $('photoChange').onclick = () => $('photoFile').click();
-    $('photoFile').onchange = (e) => { pickPhoto(e.target.files[0]); e.target.value = ''; };
-    $('photoRemove').onclick = () => { discardPickedPhoto(); formPhoto.path = ''; drawFormPhoto(); };
-    $('dlg').addEventListener('close', discardPickedPhoto);
-
-    // On a computer you can also drag a photo onto the form
-    $('photoField').ondragover = (e) => { e.preventDefault(); $('photoField').classList.add('dragging'); };
-    $('photoField').ondragleave = () => $('photoField').classList.remove('dragging');
-    $('photoField').ondrop = (e) => {
-      e.preventDefault();
-      $('photoField').classList.remove('dragging');
-      pickPhoto(e.dataTransfer.files[0]);
-    };
+    const formPhoto = makePhotoPicker('photo', $('dlg'));
+    const beanPhoto = makePhotoPicker('beanPhoto', $('beanDlg'));
 
     function openForm(brew, mode) {
       form.reset();
       $('pours').innerHTML = '';
-      discardPickedPhoto();
       // "Brew again" starts without a photo: each photo belongs to one brew
-      formPhoto.path = mode === 'edit' ? (brew.photo || '') : '';
-      drawFormPhoto();
+      formPhoto.start(mode === 'edit' ? brew.photo : '');
       editingId = mode === 'edit' ? brew.id : null;
       // Editing shows the bean's name, and how long after roasting the brew was made
       $('dlgTitle').textContent = mode === 'edit' ? brew.bean || 'Edit brew' : 'New brew';
@@ -1626,13 +1673,7 @@
 
     form.onsubmit = () => {
       const data = readForm();
-      const photoBlob = formPhoto.blob;
-      if (photoBlob) {
-        // Show the picked photo on its card straight away, while it uploads
-        photoUrls.set(data.photo, formPhoto.previewUrl);
-        formPhoto.blob = null;
-        formPhoto.previewUrl = '';
-      }
+      const photoBlob = formPhoto.take();
       let brew, oldPhoto = '';
       if (editingId) {
         const i = brews.findIndex(b => b.id === editingId);
@@ -1987,7 +2028,7 @@
     };
 
     // ---------- My Beans ----------
-    // Each bean looks like { id, name, roaster, origin, variety, process, roastDate, notes, archived }.
+    // Each bean looks like { id, name, roaster, origin, variety, process, roastDate, notes, photo, archived }.
     // A brew keeps the bean's id (`beanId`) plus its own copy of the details, like it does for gear.
     // Beans that past brews use are never erased: deleting one marks it `archived`.
     const BEAN_FIELDS = ['name', ...BEAN_DETAILS]; // copied onto a brew (`name` becomes the brew's `bean`)
@@ -2028,14 +2069,18 @@
       const items = activeBeans();
       $('beanItems').innerHTML = items.length ? items.map(bean => {
         const used = brewsWithBean(bean).length;
+        const photo = cardPhotoHtml(bean.photo);
         return `
-          <div class="card" data-bean-id="${escapeHtml(bean.id)}">
+          <div class="card${photo ? ' has-side' : ''}" data-bean-id="${escapeHtml(bean.id)}">
+            <div class="card-main">
             <h3>${escapeHtml(bean.name)}</h3>
             <div class="sub">${escapeHtml([bean.roaster, bean.origin, bean.variety, bean.process].filter(Boolean).join(' · '))}</div>
             <ul class="facts">
               ${bean.roastDate ? factHtml('roast', escapeHtml(`${toDisplayDate(bean.roastDate)} · ${roastAge(bean)}`)) : ''}
               ${used ? factHtml('cup', `Used in ${used} brew${used > 1 ? 's' : ''}`) : ''}
             </ul>
+            </div>
+            ${photo ? `<div class="card-side">${photo}</div>` : ''}
           </div>`;
       }).join('') : '<div class="gear-empty">No beans yet</div>';
       $('importBeansBtn').hidden = !unlinkedBeanNames().size;
@@ -2110,6 +2155,7 @@
       }
       beanField('roastDate').value = toDisplayDate(beanField('roastDate').value);
       checkDate(beanField('roastDate'));
+      beanPhoto.start(data.photo);
       beanCal.close();
       $('beanDlg').showModal();
     }
@@ -2131,11 +2177,14 @@
       const f = Object.fromEntries(new FormData(beanForm));
       for (const k in f) f[k] = f[k].trim();
       f.roastDate = toSavedDate(f.roastDate);
-      let item;
+      f.photo = beanPhoto.path;
+      const photoBlob = beanPhoto.take();
+      let item, oldPhoto = '';
       if (editingBeanId) {
         const i = beans.findIndex(b => b.id === editingBeanId);
         if (i < 0) return;
         const before = beans[i];
+        oldPhoto = before.photo || '';
         item = beans[i] = { ...before, ...f };
         updateBeanInBrews(before, item);
       } else {
@@ -2144,7 +2193,7 @@
       }
       cacheBeans();
       render();
-      uploadBeans([item]);
+      saveBean(item, photoBlob, oldPhoto);
       finishBeanForm(editingBeanId ? null : item);
     };
 
@@ -2162,7 +2211,7 @@
       cacheBeans();
       render();
       if (used) uploadBeans([item]);
-      else deleteRowOnline('beans', item.id);
+      else deleteRowOnline('beans', item.id).then(ok => { if (ok) deletePhotoOnline(item.photo); });
     };
     function finishBeanForm(item) {
       const done = beanDone;
