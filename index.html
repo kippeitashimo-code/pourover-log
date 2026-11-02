@@ -330,8 +330,9 @@
       background: var(--card); color: var(--text); box-shadow: 0 20px 60px rgba(0,0,0,.2);
     }
     dialog::backdrop { background: rgba(0,0,0,.3); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
-    .dlg-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--line); }
-    .dlg-head h2 { margin: 0; font-size: 1.25rem; font-weight: 700; }
+    .dlg-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+    .dlg-head h2 { margin: 0; font-size: 1.25rem; font-weight: 700; overflow-wrap: anywhere; }
+    .dlg-head .dlg-sub { margin-top: 2px; font-size: .85rem; color: var(--muted); }
     .dlg-body { padding: 16px 20px; max-height: 70vh; overflow-y: auto; }
     .dlg-foot { display: flex; justify-content: space-between; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--line); }
     fieldset { border: none; padding: 0; margin: 0 0 20px; }
@@ -565,7 +566,7 @@
   <dialog id="dlg">
     <form id="form" method="dialog">
       <div class="dlg-head">
-        <h2 id="dlgTitle">New brew</h2>
+        <div><h2 id="dlgTitle">New brew</h2><div class="dlg-sub" id="dlgSub" hidden></div></div>
         <button type="button" class="small" id="closeBtn">✕</button>
       </div>
 
@@ -650,6 +651,7 @@
           </div>
           <div id="pours"></div>
           <button type="button" class="small" id="addPour">+ Add pour</button>
+          <div style="margin-top:10px"><label>Pour notes</label><textarea name="pourNotes" placeholder="e.g. Swirled after bloom, slow centre pour"></textarea></div>
         </fieldset>
 
         <fieldset>
@@ -747,6 +749,24 @@
         </div>
         <div class="calendar" id="beanCal" hidden></div>
         <div><label>Notes</label><textarea name="notes" placeholder="Where you bought it, price, farm…"></textarea></div>
+        <div style="margin-top:10px">
+          <label>Photo</label>
+          <div class="photo-field" id="beanPhotoField">
+            <button type="button" class="photo-add" id="beanPhotoAdd">
+              <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M21 17l-5-5-9 8"/></svg>
+              Add a photo
+            </button>
+            <div class="photo-preview" id="beanPhotoPreview" hidden>
+              <img id="beanPhotoImg" alt="Photo of this bean">
+              <div class="toolbar">
+                <button type="button" class="small" id="beanPhotoChange">Change</button>
+                <button type="button" class="small danger" id="beanPhotoRemove">Remove</button>
+              </div>
+            </div>
+            <!-- No name, so it isn't saved with the form; the photo is handled separately -->
+            <input type="file" id="beanPhotoFile" accept="image/*" hidden>
+          </div>
+        </div>
       </div>
 
       <div class="dlg-foot">
@@ -884,6 +904,7 @@
       setStatus('Saving…');
       const { error } = await db.from(table).delete().eq('id', id);
       setStatus(error ? 'Delete failed: check your connection' : 'Synced', !!error);
+      return !error;
     }
 
     async function deleteBrewOnline(id, photo) {
@@ -893,31 +914,36 @@
       if (!error) deletePhotoOnline(photo);
     }
 
-    // Saves a new or edited brew. If it has a new photo, that is uploaded first.
-    // oldPhoto is the photo the brew had before; it's deleted once it's no longer used.
-    async function saveBrew(brew, photoBlob, oldPhoto) {
-      const photo = brew.photo;
+    // Saves a new or edited brew or bean. If it has a new photo, that is uploaded first.
+    // oldPhoto is the photo it had before; it's deleted once it's no longer used.
+    async function saveWithPhoto(item, photoBlob, oldPhoto, { find, cache, upload }) {
+      const photo = item.photo;
       let photoSaved = true;
       if (photoBlob) {
         setStatus('Saving photo…');
         photoSaved = await uploadPhoto(photo, photoBlob);
       }
-      // Use the latest copy, in case the brew was changed or deleted while the photo uploaded
-      const latest = brews.find(b => b.id === brew.id);
+      // Use the latest copy, in case it was changed or deleted while the photo uploaded
+      const latest = find(item.id);
       if (!latest) return;
       if (!photoSaved && latest.photo === photo) {
-        latest.photo = oldPhoto; // keep the brew, just without the new photo
-        cacheBrews();
+        latest.photo = oldPhoto; // keep the brew or bean, just without the new photo
+        cache();
         render();
       }
-      if (!await uploadBrews([latest])) return;
+      if (!await upload([latest])) return;
       if (!photoSaved) return setStatus('Photo not saved: check your connection', true);
       if (oldPhoto && oldPhoto !== latest.photo) deletePhotoOnline(oldPhoto);
     }
 
+    const saveBrew = (brew, photoBlob, oldPhoto) => saveWithPhoto(brew, photoBlob, oldPhoto,
+      { find: (id) => brews.find(b => b.id === id), cache: cacheBrews, upload: uploadBrews });
+    const saveBean = (bean, photoBlob, oldPhoto) => saveWithPhoto(bean, photoBlob, oldPhoto,
+      { find: (id) => beans.find(b => b.id === id), cache: cacheBeans, upload: uploadBeans });
+
     // ---------- Photos ----------
-    // Photos are stored as files in Supabase Storage (not in the brew itself, which would make it
-    // too big to keep in this browser). A brew's `photo` is the file's name, like "<user id>/<random id>.jpg".
+    // Photos are stored as files in Supabase Storage (not in the brew or bean itself, which would make it
+    // too big to keep in this browser). A brew's or bean's `photo` is the file's name, like "<user id>/<random id>.jpg".
     // The storage is private, so each photo is shown through a temporary link from Supabase.
     const PHOTO_BUCKET = 'brew-photos';
     const photoUrls = new Map(); // file name → link (null while asking for it, '' if the photo is missing)
@@ -937,14 +963,15 @@
     async function loadPhotoUrls() {
       // Links last a week; get fresh ones every day so an open tab never ends up with expired ones
       if (Date.now() - photoUrlsSince > 24 * 60 * 60 * 1000) { photoUrls.clear(); photoUrlsSince = Date.now(); }
-      const missing = [...new Set(brews.map(b => b.photo).filter(p => p && !photoUrls.has(p)))];
+      const missing = [...new Set([...brews, ...beans].map(b => b.photo).filter(p => p && !photoUrls.has(p)))];
       if (!missing.length) return;
       missing.forEach(p => photoUrls.set(p, null));
       const { data, error } = await db.storage.from(PHOTO_BUCKET).createSignedUrls(missing, 7 * 24 * 60 * 60);
       if (error) { missing.forEach(p => photoUrls.delete(p)); return; } // offline: try again next time
       data.forEach(d => photoUrls.set(d.path, d.signedUrl || ''));
       render();
-      drawFormPhoto();
+      formPhoto.draw();
+      beanPhoto.draw();
     }
 
     // Phone photos are huge, so shrink them to at most 1200px on the long side and save as JPEG.
@@ -1098,25 +1125,28 @@
     // Overall score as a bar along the card's top edge (nothing when not scored)
     // Its colour slides from red (0) through yellow to green (10)
     const scoreBarHtml = (n) => !n ? '' : `<div class="score-bar" role="img" aria-label="Overall ${n}/10" title="Overall ${n}/10"><span style="width:${n * 10}%; background:hsl(${n * 12} 72% 46%)"></span></div>`;
-    const tasteLine = (b) => TASTES.filter(([key]) => b[key]).map(([key, label]) => `${label} ${b[key]}`).join(' · ');
+    // Tasting scores (all but Overall) are 1–5. Older brews scored them 1–10, so halve those
+    const TASTE_MAX = 5;
+    const tasteOf = (b, key) => b.tasteScale === TASTE_MAX ? b[key] || 0 : Math.ceil((b[key] || 0) / 2);
+    const tasteLine = (b) => TASTES.filter(([key]) => tasteOf(b, key)).map(([key, label]) => `${label} ${tasteOf(b, key)}`).join(' · ');
     // Pentagon chart of the five tasting scores. Corners go clockwise from the top
-    // (Body, Acidity, Sweetness, Bitterness, Clarity); 10 is the outer edge, unscored sits in the middle.
+    // (Body, Acidity, Sweetness, Bitterness, Clarity); 5 is the outer edge, unscored sits in the middle.
     function radarSvg(b, big = false) {
       const R = 70;
       const at = (i, n) => {
         const angle = -Math.PI / 2 + i * 2 * Math.PI / TASTES.length;
-        return [Math.cos(angle) * R * n / 10, Math.sin(angle) * R * n / 10];
+        return [Math.cos(angle) * R * n / TASTE_MAX, Math.sin(angle) * R * n / TASTE_MAX];
       };
       const polygon = (n) => TASTES.map((_, i) => at(i, typeof n === 'function' ? n(i) : n).map(v => v.toFixed(1)).join(',')).join(' ');
-      const value = (i) => Math.min(10, Math.max(0, Number(b[TASTES[i][0]]) || 0));
-      const rings = (big ? [2, 4, 6, 8, 10] : [5, 10]).map(n => `<polygon class="ring" points="${polygon(n)}"/>`).join('');
-      const spokes = TASTES.map((_, i) => { const [x, y] = at(i, 10); return `<line class="spoke" x1="0" y1="0" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`; }).join('');
+      const value = (i) => Math.min(TASTE_MAX, Math.max(0, Number(tasteOf(b, TASTES[i][0])) || 0));
+      const rings = (big ? [1, 2, 3, 4, 5] : [2.5, 5]).map(n => `<polygon class="ring" points="${polygon(n)}"/>`).join('');
+      const spokes = TASTES.map((_, i) => { const [x, y] = at(i, TASTE_MAX); return `<line class="spoke" x1="0" y1="0" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`; }).join('');
       const dots = TASTES.map((_, i) => { if (!value(i)) return ''; const [x, y] = at(i, value(i)); return `<circle class="pt" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3"/>`; }).join('');
       // Names just outside each corner: with the score in the large version, name only on the cards
       const names = TASTES.map(([key, label], i) => {
         if (!big) {
           label = SHORT_TASTES[key] || label;
-          const [x, y] = at(i, 10);
+          const [x, y] = at(i, TASTE_MAX);
           const side = y < 0 && Math.abs(x) > 5; // the two upper side corners: put the name beside them
           const tx = side ? x + Math.sign(x) * 8 : x;
           const ty = side ? y : y + Math.sign(y) * 14;
@@ -1124,7 +1154,7 @@
           const anchor = Math.abs(x) < 5 ? 'middle' : x > 0 ? 'start' : 'end';
           return `<text x="${(side ? tx : tx - Math.sign(x) * 12).toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle">${label}</text>`;
         }
-        const [x, y] = at(i, 11.5);
+        const [x, y] = at(i, TASTE_MAX * 1.15);
         const anchor = x > 5 ? 'start' : x < -5 ? 'end' : 'middle';
         const dy = y < -R ? -4 : y > R / 2 ? 8 : 0;
         return `<text x="${x.toFixed(1)}" y="${(y + dy).toFixed(1)}" text-anchor="${anchor}" dominant-baseline="middle">${label} <tspan>${value(i) || '–'}</tspan></text>`;
@@ -1160,14 +1190,18 @@
       return `${escapeHtml(toDisplayDate(date))}${weekday === 'Invalid Date' ? '' : ` <span>${weekday}</span>`}`;
     }
 
+    // Photo for the right side of a card ('' if there's none, or it was found missing)
+    function cardPhotoHtml(path) {
+      const url = path ? photoUrls.get(path) : '';
+      return url === '' ? ''
+        : `<div class="card-photo">${url ? `<img src="${escapeHtml(url)}" alt="" loading="lazy">` : ''}</div>`;
+    }
+
     // One recipe card
     function cardHtml(b) {
-      // Photo on the right, only if the brew has one (and it wasn't found missing)
-      const photoUrl = b.photo ? photoUrls.get(b.photo) : '';
-      const photo = photoUrl === '' ? ''
-        : `<div class="card-photo">${photoUrl ? `<img src="${escapeHtml(photoUrl)}" alt="" loading="lazy">` : ''}</div>`;
+      const photo = cardPhotoHtml(b.photo);
       // Taste chart under the photo, only if at least one taste was scored
-      const radar = TASTES.some(([key]) => b[key]) ? radarSvg(b) : '';
+      const radar = TASTES.some(([key]) => tasteOf(b, key)) ? radarSvg(b) : '';
       return `
       <div class="card${photo || radar ? ' has-side' : ''}" data-id="${b.id}">
         ${scoreBarHtml(overallOf(b))}
@@ -1354,12 +1388,14 @@
 
     // Tasting score lines: drag the dot with a finger or the mouse, or tap a spot on the line.
     // Tapping the current score again clears it. Arrow keys work too.
+    // Overall goes up to 10, the other scores up to 5
+    const scaleMax = (key) => key === 'overall' ? 10 : TASTE_MAX;
     $('scales').innerHTML = [...TASTES, ['overall', 'Overall']].map(([key, label]) => `
       <div class="scale-row${key === 'overall' ? ' overall' : ''}">
         <span class="name">${label}</span>
-        <div class="scale" data-key="${key}" role="slider" tabindex="0" aria-label="${label}" aria-valuemin="0" aria-valuemax="10">
+        <div class="scale" data-key="${key}" role="slider" tabindex="0" aria-label="${label}" aria-valuemin="0" aria-valuemax="${scaleMax(key)}">
           <div class="rail"><span class="line"></span><span class="fill"></span>
-            <span class="marks">${'<i></i>'.repeat(10)}</span><span class="dot"></span></div>
+            <span class="marks">${'<i></i>'.repeat(scaleMax(key))}</span><span class="dot"></span></div>
         </div>
         <span class="value"></span>
       </div>`).join('');
@@ -1367,24 +1403,25 @@
     function drawScales() {
       $('scales').querySelectorAll('.scale').forEach(bar => {
         const n = scores[bar.dataset.key] || 0;
-        // Score 1 sits at the left end of the line, 10 at the right end
-        bar.style.setProperty('--at', `${(Math.max(n, 1) - 1) / 9 * 100}%`);
+        // Score 1 sits at the left end of the line, the top score at the right end
+        const max = scaleMax(bar.dataset.key);
+        bar.style.setProperty('--at', `${(Math.max(n, 1) - 1) / (max - 1) * 100}%`);
         bar.classList.toggle('unset', !n);
         bar.querySelectorAll('.marks i').forEach((mark, i) => mark.classList.toggle('on', i < n));
         bar.setAttribute('aria-valuenow', n);
         bar.nextElementSibling.textContent = n || '–';
       });
       // The chart at the top of the form follows the sliders as you drag them
-      $('formRadar').innerHTML = radarSvg(scores, true);
+      $('formRadar').innerHTML = radarSvg({ ...scores, tasteScale: TASTE_MAX }, true);
     }
 
     $('scales').querySelectorAll('.scale').forEach(bar => {
-      const key = bar.dataset.key;
+      const key = bar.dataset.key, max = scaleMax(key);
       let before = 0, moved = false;
-      // Which mark (1–10) is closest to the finger or mouse
+      // Which mark is closest to the finger or mouse
       const scoreAt = (x) => {
         const box = bar.querySelector('.rail').getBoundingClientRect();
-        return Math.min(10, Math.max(1, Math.round((x - box.left) / box.width * 9) + 1));
+        return Math.min(max, Math.max(1, Math.round((x - box.left) / box.width * (max - 1)) + 1));
       };
       const set = (n) => { scores[key] = n; drawScales(); };
       bar.onpointerdown = (e) => {
@@ -1406,7 +1443,7 @@
         const next = { ArrowRight: n + 1, ArrowUp: n + 1, ArrowLeft: n - 1, ArrowDown: n - 1, Delete: 0, Backspace: 0 }[e.key];
         if (next === undefined) return;
         e.preventDefault();
-        set(Math.min(10, Math.max(0, next)));
+        set(Math.min(max, Math.max(0, next)));
       };
     });
 
@@ -1500,61 +1537,83 @@
     }
     form.dose.oninput = form.water.oninput = updateRatio;
 
-    // The photo being edited in the form: its file name, plus the shrunk image if it was just picked
-    // (not uploaded until you press Save) and a link to show that image before it's uploaded.
-    const formPhoto = { path: '', blob: null, previewUrl: '' };
+    // A photo picker in a popup form (the brew form and the bean form each have one).
+    // `path` is the photo's file name. A just-picked photo is kept as a shrunk image (`blob`,
+    // not uploaded until you press Save) with a link to show it before it's uploaded (`previewUrl`).
+    // The parts are found by id: "photoAdd", "photoImg"… or "beanPhotoAdd", "beanPhotoImg"…
+    function makePhotoPicker(prefix, dlg) {
+      const el = (name) => $(prefix + name);
+      const p = { path: '', blob: null, previewUrl: '' };
 
-    function drawFormPhoto() {
-      const has = !!formPhoto.path;
-      $('photoAdd').hidden = has;
-      $('photoPreview').hidden = !has;
-      const url = formPhoto.previewUrl || (has && photoUrls.get(formPhoto.path)) || '';
-      if (url) $('photoImg').src = url;
-      else $('photoImg').removeAttribute('src');
+      p.draw = () => {
+        const has = !!p.path;
+        el('Add').hidden = has;
+        el('Preview').hidden = !has;
+        const url = p.previewUrl || (has && photoUrls.get(p.path)) || '';
+        if (url) el('Img').src = url;
+        else el('Img').removeAttribute('src');
+      };
+      // Throw away a picked photo that was never saved
+      p.discard = () => {
+        if (p.previewUrl) URL.revokeObjectURL(p.previewUrl);
+        p.blob = null;
+        p.previewUrl = '';
+      };
+      // When the form opens: show the photo it already has (if any)
+      p.start = (path) => { p.discard(); p.path = path || ''; p.draw(); };
+      // On Save: hands over the picked image to upload, and shows it on its card straight away
+      p.take = () => {
+        const blob = p.blob;
+        if (blob) {
+          photoUrls.set(p.path, p.previewUrl);
+          p.blob = null;
+          p.previewUrl = '';
+        }
+        return blob;
+      };
+
+      async function pick(file) {
+        if (!file) return;
+        let blob;
+        try { blob = await shrinkPhoto(file); }
+        catch { return alert("That photo couldn't be opened. Try a JPEG or PNG."); }
+        p.discard();
+        p.blob = blob;
+        p.previewUrl = URL.createObjectURL(blob);
+        p.path = `${user.id}/${crypto.randomUUID()}.jpg`; // a fresh name, so the old photo stays until Save
+        p.draw();
+      }
+
+      el('Add').onclick = el('Change').onclick = () => el('File').click();
+      el('File').onchange = (e) => { pick(e.target.files[0]); e.target.value = ''; };
+      el('Remove').onclick = () => { p.discard(); p.path = ''; p.draw(); };
+      dlg.addEventListener('close', p.discard);
+
+      // On a computer you can also drag a photo onto the form
+      const field = el('Field');
+      field.ondragover = (e) => { e.preventDefault(); field.classList.add('dragging'); };
+      field.ondragleave = () => field.classList.remove('dragging');
+      field.ondrop = (e) => {
+        e.preventDefault();
+        field.classList.remove('dragging');
+        pick(e.dataTransfer.files[0]);
+      };
+      return p;
     }
-
-    // Throw away a picked photo that was never saved
-    function discardPickedPhoto() {
-      if (formPhoto.previewUrl) URL.revokeObjectURL(formPhoto.previewUrl);
-      formPhoto.blob = null;
-      formPhoto.previewUrl = '';
-    }
-
-    async function pickPhoto(file) {
-      if (!file) return;
-      let blob;
-      try { blob = await shrinkPhoto(file); }
-      catch { return alert("That photo couldn't be opened. Try a JPEG or PNG."); }
-      discardPickedPhoto();
-      formPhoto.blob = blob;
-      formPhoto.previewUrl = URL.createObjectURL(blob);
-      formPhoto.path = `${user.id}/${crypto.randomUUID()}.jpg`; // a fresh name, so the old photo stays until Save
-      drawFormPhoto();
-    }
-
-    $('photoAdd').onclick = $('photoChange').onclick = () => $('photoFile').click();
-    $('photoFile').onchange = (e) => { pickPhoto(e.target.files[0]); e.target.value = ''; };
-    $('photoRemove').onclick = () => { discardPickedPhoto(); formPhoto.path = ''; drawFormPhoto(); };
-    $('dlg').addEventListener('close', discardPickedPhoto);
-
-    // On a computer you can also drag a photo onto the form
-    $('photoField').ondragover = (e) => { e.preventDefault(); $('photoField').classList.add('dragging'); };
-    $('photoField').ondragleave = () => $('photoField').classList.remove('dragging');
-    $('photoField').ondrop = (e) => {
-      e.preventDefault();
-      $('photoField').classList.remove('dragging');
-      pickPhoto(e.dataTransfer.files[0]);
-    };
+    const formPhoto = makePhotoPicker('photo', $('dlg'));
+    const beanPhoto = makePhotoPicker('beanPhoto', $('beanDlg'));
 
     function openForm(brew, mode) {
       form.reset();
       $('pours').innerHTML = '';
-      discardPickedPhoto();
       // "Brew again" starts without a photo: each photo belongs to one brew
-      formPhoto.path = mode === 'edit' ? (brew.photo || '') : '';
-      drawFormPhoto();
+      formPhoto.start(mode === 'edit' ? brew.photo : '');
       editingId = mode === 'edit' ? brew.id : null;
-      $('dlgTitle').textContent = mode === 'edit' ? 'Edit brew' : 'New brew';
+      // Editing shows the bean's name, and how long after roasting the brew was made
+      $('dlgTitle').textContent = mode === 'edit' ? brew.bean || 'Edit brew' : 'New brew';
+      const roastDays = mode === 'edit' && brew.roastDate ? daysSince(brew.roastDate, brew.brewDate || today()) : null;
+      $('dlgSub').textContent = roastDays === null || roastDays < 0 ? '' : `${roastDays} day${roastDays === 1 ? '' : 's'} off roast`;
+      $('dlgSub').hidden = !$('dlgSub').textContent;
       $('deleteBtn').style.display = $('dupBtn').style.display = mode === 'edit' ? '' : 'none';
 
       formCal.close();
@@ -1573,7 +1632,7 @@
       form.querySelectorAll('.date-input').forEach(el => { el.value = toDisplayDate(el.value); checkDate(el); });
       (data.pours || []).forEach(addPourRow);
       // "Brew again" starts unscored: it's a new cup to taste
-      scores = mode === 'copy' ? {} : Object.fromEntries(TASTES.map(([key]) => [key, data[key] || 0]));
+      scores = mode === 'copy' ? {} : Object.fromEntries(TASTES.map(([key]) => [key, tasteOf(data, key)]));
       if (mode !== 'copy') scores.overall = overallOf(data);
       drawScales();
       updateRatio();
@@ -1590,6 +1649,7 @@
         return { t: t.value, g: g.value, note: note.value };
       }).filter(p => p.t || p.g || p.note);
       ['overall', ...TASTES.map(([key]) => key)].forEach(key => f[key] = scores[key] || 0);
+      f.tasteScale = TASTE_MAX; // marks the scores as 1–5, see tasteOf()
       f.photo = formPhoto.path;
       // A typed bean name that matches one in My Beans gets linked to it
       if (!f.beanId) f.beanId = beanNamed(f.bean)?.id || '';
@@ -1613,13 +1673,7 @@
 
     form.onsubmit = () => {
       const data = readForm();
-      const photoBlob = formPhoto.blob;
-      if (photoBlob) {
-        // Show the picked photo on its card straight away, while it uploads
-        photoUrls.set(data.photo, formPhoto.previewUrl);
-        formPhoto.blob = null;
-        formPhoto.previewUrl = '';
-      }
+      const photoBlob = formPhoto.take();
       let brew, oldPhoto = '';
       if (editingId) {
         const i = brews.findIndex(b => b.id === editingId);
@@ -1974,7 +2028,7 @@
     };
 
     // ---------- My Beans ----------
-    // Each bean looks like { id, name, roaster, origin, variety, process, roastDate, notes, archived }.
+    // Each bean looks like { id, name, roaster, origin, variety, process, roastDate, notes, photo, archived }.
     // A brew keeps the bean's id (`beanId`) plus its own copy of the details, like it does for gear.
     // Beans that past brews use are never erased: deleting one marks it `archived`.
     const BEAN_FIELDS = ['name', ...BEAN_DETAILS]; // copied onto a brew (`name` becomes the brew's `bean`)
@@ -1985,10 +2039,10 @@
     // The bean in My Beans with this name (ignoring case and extra spaces), if any
     const beanNamed = (name) => nameKey(name) ? activeBeans().find(b => nameKey(b.name) === nameKey(name)) : null;
 
-    // Whole days from a "YYYY-MM-DD" date to today
-    function daysSince(date) {
+    // Whole days from a "YYYY-MM-DD" date to today (or to another date)
+    function daysSince(date, until = today()) {
       if (!date) return null;
-      return Math.round((new Date(today() + 'T00:00:00') - new Date(date + 'T00:00:00')) / 86400000);
+      return Math.round((new Date(until + 'T00:00:00') - new Date(date + 'T00:00:00')) / 86400000);
     }
     // "12 days off roast" ('' if there's no roast date)
     function roastAge(bean) {
@@ -2015,14 +2069,18 @@
       const items = activeBeans();
       $('beanItems').innerHTML = items.length ? items.map(bean => {
         const used = brewsWithBean(bean).length;
+        const photo = cardPhotoHtml(bean.photo);
         return `
-          <div class="card" data-bean-id="${escapeHtml(bean.id)}">
+          <div class="card${photo ? ' has-side' : ''}" data-bean-id="${escapeHtml(bean.id)}">
+            <div class="card-main">
             <h3>${escapeHtml(bean.name)}</h3>
             <div class="sub">${escapeHtml([bean.roaster, bean.origin, bean.variety, bean.process].filter(Boolean).join(' · '))}</div>
             <ul class="facts">
               ${bean.roastDate ? factHtml('roast', escapeHtml(`${toDisplayDate(bean.roastDate)} · ${roastAge(bean)}`)) : ''}
               ${used ? factHtml('cup', `Used in ${used} brew${used > 1 ? 's' : ''}`) : ''}
             </ul>
+            </div>
+            ${photo ? `<div class="card-side">${photo}</div>` : ''}
           </div>`;
       }).join('') : '<div class="gear-empty">No beans yet</div>';
       $('importBeansBtn').hidden = !unlinkedBeanNames().size;
@@ -2097,6 +2155,7 @@
       }
       beanField('roastDate').value = toDisplayDate(beanField('roastDate').value);
       checkDate(beanField('roastDate'));
+      beanPhoto.start(data.photo);
       beanCal.close();
       $('beanDlg').showModal();
     }
@@ -2118,11 +2177,14 @@
       const f = Object.fromEntries(new FormData(beanForm));
       for (const k in f) f[k] = f[k].trim();
       f.roastDate = toSavedDate(f.roastDate);
-      let item;
+      f.photo = beanPhoto.path;
+      const photoBlob = beanPhoto.take();
+      let item, oldPhoto = '';
       if (editingBeanId) {
         const i = beans.findIndex(b => b.id === editingBeanId);
         if (i < 0) return;
         const before = beans[i];
+        oldPhoto = before.photo || '';
         item = beans[i] = { ...before, ...f };
         updateBeanInBrews(before, item);
       } else {
@@ -2131,7 +2193,7 @@
       }
       cacheBeans();
       render();
-      uploadBeans([item]);
+      saveBean(item, photoBlob, oldPhoto);
       finishBeanForm(editingBeanId ? null : item);
     };
 
@@ -2149,7 +2211,7 @@
       cacheBeans();
       render();
       if (used) uploadBeans([item]);
-      else deleteRowOnline('beans', item.id);
+      else deleteRowOnline('beans', item.id).then(ok => { if (ok) deletePhotoOnline(item.photo); });
     };
     function finishBeanForm(item) {
       const done = beanDone;
