@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Brewbook (formerly Pourover Log) is a single-page app for recording pour-over coffee brews. The whole app — HTML, CSS and JavaScript — lives in `index.html`. There is no build step, package manager, linter or test suite. The only external dependencies are `supabase-js`, loaded from a pinned jsDelivr URL, and the Roboto Slab font for the logo, loaded from Google Fonts. The localStorage keys still use the old `pourover-log` name; keep them as they are so existing caches keep working.
+Brewbook (formerly Pourover Log) is a single-page app for recording pour-over coffee brews. The page and its JavaScript live in `index.html`, and the CSS lives in `style.css`. There is no build step, package manager, linter or test suite. The only external dependencies are `supabase-js`, loaded from a pinned jsDelivr URL, and the Roboto Slab font for the logo, loaded from Google Fonts. The localStorage keys still use the old `pourover-log` name; keep them as they are so existing caches keep working.
 
 ## Running
 
