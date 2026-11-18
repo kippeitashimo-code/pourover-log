@@ -29,7 +29,7 @@ I work as a barista. Pour-over taste shifts with small changes: the beans, days 
 
 | | Choice | Why |
 | --- | --- | --- |
-| Frontend | A single `index.html` (vanilla HTML / CSS / JS), no build step | The app is small, and one file is easy to read, change and deploy. GitHub Pages can serve it as is. |
+| Frontend | `index.html` (vanilla HTML / JS) plus `style.css`, no build step | The app is small, and a few plain files are easy to read, change and deploy. GitHub Pages can serve it as is. |
 | Backend | [Supabase](https://supabase.com/) (Auth, Postgres, Storage) | Sign-in, a database and file storage without running my own server. Row Level Security keeps users' data apart. |
 | Data model | One `data` **jsonb** column per row | Adding a field to the form needs no database migration. The tables only hold `id`, `user_id` and `data`. |
 | Score scale | Backward-compatible reads (`overallOf`, `tasteOf`) | The scales changed (1–5 stars → 1–10 overall, 1–10 → 1–5 tasting). Old brews are converted when read, so stored data never has to be rewritten. |

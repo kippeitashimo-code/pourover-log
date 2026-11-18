@@ -29,7 +29,7 @@
 
 | | 選択 | 理由 |
 | --- | --- | --- |
-| Frontend | `index.html` 1 枚（素の HTML / CSS / JavaScript）、build なし | 規模が小さく、1 ファイルなら読む・直す・deploy するのが簡単。GitHub Pages でそのまま配信できます。 |
+| Frontend | `index.html`（素の HTML / JavaScript）と `style.css`、build なし | 規模が小さく、少数の素のファイルなら読む・直す・deploy するのが簡単。GitHub Pages でそのまま配信できます。 |
 | Backend | [Supabase](https://supabase.com/)（Auth、Postgres、Storage） | 自前の server を持たずに、ログイン・database・ファイル保存がそろいます。Row Level Security でユーザーごとのデータを分離。 |
 | データ構造 | 1 行に 1 つの **jsonb** 列 `data` | フォームに項目を足しても database の migration が不要。table は `id`、`user_id`、`data` だけです。 |
 | 評価スケール | 後方互換の読み出し（`overallOf`、`tasteOf`） | 途中で評価の段階を変更しました（星 1–5 → 総合 1–10、テイスティング 1–10 → 1–5）。古い記録は読むときに換算するので、保存済みデータを書き換える必要がありません。 |
