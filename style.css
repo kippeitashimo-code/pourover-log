@@ -1,0 +1,401 @@
+/* ============================================================
+   STYLES (CSS): how the page looks
+   ============================================================ */
+
+/* Clean, mostly-white look in the style of Apple's apps: light grey page, white cards, blue accent */
+:root {
+  --bg: #f5f5f7;
+  --card: #ffffff;
+  --fill: #f2f2f7;        /* background of inputs and plain buttons */
+  --fill-hover: #e8e8ed;
+  --text: #1d1d1f;
+  --muted: #6e6e73;
+  --line: #e5e5ea;
+  --accent: #0071e3;
+  --accent-soft: #e8f1fc;
+  --danger: #e0352b;
+  --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.06);
+  --shadow-hover: 0 2px 4px rgba(0,0,0,.05), 0 10px 28px rgba(0,0,0,.10);
+  --bar-bg: rgba(255,255,255,.78); /* see-through bottom bar */
+  --tabbar-h: 60px; /* height of the bottom navigation bar */
+  --tabbar-gap: max(12px, env(safe-area-inset-bottom)); /* space below the bar */
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000;
+    --card: #1c1c1e;
+    --fill: #2c2c2e;
+    --fill-hover: #3a3a3c;
+    --text: #f5f5f7;
+    --muted: #98989d;
+    --line: #38383a;
+    --accent: #0a84ff;
+    --accent-soft: rgba(10,132,255,.18);
+    --danger: #ff453a;
+    --shadow: none;
+    --shadow-hover: 0 0 0 1px var(--line);
+    --bar-bg: rgba(28,28,30,.78);
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap {
+  max-width: 960px; margin: 0 auto;
+  padding: 24px max(16px, env(safe-area-inset-right)) calc(var(--tabbar-h) + 48px + var(--tabbar-gap)) max(16px, env(safe-area-inset-left));
+}
+
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 { margin: 0; font-size: 1.9rem; font-weight: 700; letter-spacing: -.02em; }
+h1 span { color: var(--accent); }
+.brand { font-family: "Roboto Slab", Rockwell, Georgia, serif; letter-spacing: -.01em; } /* the Brewbook logo */
+/* The logo at the top of every page, above each page's own heading */
+/* It stays put at the top, with each page's heading row stuck just below it; the rest slides underneath.
+   Scrolling down slides the logo away and the heading row moves up into its place; scrolling up brings it back. */
+.brandbar {
+  position: sticky; top: 0; z-index: 6; height: var(--brandbar-h);
+  padding: max(20px, env(safe-area-inset-top)) 16px 0; text-align: center;
+  transition: transform .25s cubic-bezier(.2, .8, .2, 1);
+}
+.brand-away .brandbar { transform: translateY(-100%); }
+.brandbar .brand { font-size: 2.3rem; font-weight: 700; line-height: 1.2; } /* 1.2× the page headings */
+#appView { --brandbar-h: calc(max(20px, env(safe-area-inset-top)) + 2.76rem); }
+#appView header { position: sticky; top: var(--brandbar-h); z-index: 5; padding: 12px 0; margin-top: -12px; transition: top .25s cubic-bezier(.2, .8, .2, 1); } /* -12px cancels the page's top padding, so it starts right where it sticks */
+.brand-away #appView header { top: env(safe-area-inset-top); }
+/* With the logo away, this strip still covers the phone's status bar area so cards don't show through it */
+#appView::before {
+  content: ''; position: fixed; z-index: 7; top: 0; left: 0; right: 0; height: env(safe-area-inset-top);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+}
+.brandbar, #appView header {
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+}
+.brand span { color: var(--accent); }
+#appView .wrap { padding-top: 12px; }
+h2, h3 { letter-spacing: -.01em; }
+
+/* Rounded "pill" buttons with no outline, like iOS */
+button {
+  font: inherit; font-weight: 500; cursor: pointer; border-radius: 980px;
+  border: 1px solid transparent; background: var(--fill); color: var(--text);
+  padding: 8px 16px; transition: background-color .15s, opacity .15s;
+}
+button:hover { background: var(--fill-hover); }
+button:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 1px; }
+button.primary { background: var(--accent); color: #fff; }
+button.primary:hover { opacity: .88; }
+button.danger { color: var(--danger); }
+button.small { padding: 4px 12px; font-size: .85rem; }
+
+input, select, textarea {
+  font: inherit; width: 100%; padding: 9px 12px; border-radius: 10px;
+  border: 1px solid transparent; background: var(--fill); color: var(--text);
+  transition: border-color .15s, box-shadow .15s;
+}
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+textarea { resize: vertical; min-height: 60px; }
+label { display: block; font-size: .8rem; color: var(--muted); margin-bottom: 4px; }
+
+/* Search & filter bar: folded away behind the filter button, slides open below the header */
+.filter-panel {
+  display: grid; grid-template-rows: 0fr; opacity: 0;
+  transition: grid-template-rows .3s cubic-bezier(.4, 0, .2, 1), opacity .2s ease;
+}
+.filter-panel.open { grid-template-rows: 1fr; opacity: 1; }
+/* Extra 3px around the inside so focus outlines aren't cut off */
+.filter-inner { min-height: 0; overflow: hidden; padding: 3px; margin: -3px; }
+.filters {
+  display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; padding-top: 20px;
+  transform: translateY(-8px); transition: transform .3s cubic-bezier(.2, .8, .2, 1);
+}
+.filter-panel.open .filters { transform: none; }
+@media (max-width: 640px) { .filters { grid-template-columns: 1fr 1fr; } .filters .search { grid-column: 1 / -1; } }
+/* Month calendar for the date filter: days with brews are tinted, other days stay plain */
+.calendar { margin-top: 10px; margin-left: auto; width: min(320px, 100%); background: var(--card); border-radius: 16px; box-shadow: var(--shadow); padding: 12px; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-weight: 600; font-size: .95rem; }
+.cal-head button { padding: 4px 12px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+.cal-grid .wd { font-size: .7rem; color: var(--muted); padding: 4px 0; }
+.cal-grid .d { aspect-ratio: 1; padding: 0; border-radius: 50%; background: none; color: var(--muted); font-size: .85rem; font-weight: 400; }
+.cal-grid .d:disabled { cursor: default; opacity: .6; }
+.cal-grid .d.has { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.cal-grid .d.has:hover { filter: brightness(.95); }
+.cal-grid .d.picked { background: var(--accent); color: #fff; }
+.cal-foot { display: flex; justify-content: flex-end; margin-top: 6px; }
+.cal-foot button { padding: 4px 12px; font-size: .85rem; }
+#list { margin-top: 20px; }
+
+/* Recipe cards */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; }
+.card {
+  background: var(--card); border-radius: 18px; box-shadow: var(--shadow);
+  padding: 18px; cursor: pointer; transition: box-shadow .2s, transform .2s;
+  position: relative; overflow: hidden;
+}
+.card:hover { box-shadow: var(--shadow-hover); transform: translateY(-1px); }
+.card h3 { margin: 0 0 2px; font-size: 1.05rem; }
+.card .sub { color: var(--muted); font-size: .85rem; }
+.card h3 { overflow-wrap: anywhere; }
+/* Overall score as a bar along the card's top edge: left end 0, right end 10 */
+/* (its colour goes from red at 0 to green at 10; thin gaps split it into 10 steps) */
+.score-bar { position: absolute; top: 0; left: 0; right: 0; height: 8px; background: var(--line); }
+.score-bar span { display: block; height: 100%; }
+.score-bar::after {
+  content: ''; position: absolute; inset: 0;
+  background: repeating-linear-gradient(to right, transparent 0 calc(10% - 2px), var(--card) calc(10% - 2px) 10%);
+}
+/* One section per brew date: the date, then that day's cards */
+.day + .day { margin-top: 28px; }
+.day-head { margin: 0 0 10px 4px; font-size: .95rem; font-weight: 600; }
+.day-head span { color: var(--muted); font-weight: 400; margin-left: 4px; }
+/* Brewer, ratio, temperature and time: one per line, each with a small icon */
+.facts { list-style: none; margin: 10px 0 8px; padding: 0; display: grid; gap: 4px; font-size: .85rem; }
+.facts li { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.facts li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.facts svg { flex: none; width: 16px; height: 16px; stroke: var(--muted); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.empty { text-align: center; color: var(--muted); padding: 60px 0; }
+/* A card with a photo or taste chart: details on the left, those stacked on the right edge */
+.card.has-side { display: flex; gap: 12px; }
+.card-main { flex: 1; min-width: 0; }
+.card-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.card-side .radar { width: 150px; margin-top: auto; margin-bottom: 8px; } /* sits at the bottom, its lowest name level with the last line on the left */
+.card-side .radar text { font-size: 20px; } /* the small chart is drawn shrunk, so its letters start bigger */
+
+/* Pentagon chart of the five tasting scores */
+.radar { display: block; overflow: visible; }
+.radar .ring, .radar .spoke { fill: none; stroke: var(--line); stroke-width: 1; }
+.radar .shape { fill: var(--accent); fill-opacity: .2; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+.radar .pt { fill: var(--accent); }
+.radar text { fill: var(--muted); font-size: 11px; }
+.radar text tspan { fill: var(--accent); font-weight: 600; }
+.radar-wrap { display: flex; justify-content: center; margin: 0 0 16px; }
+.radar-wrap .radar { width: min(300px, 100%); }
+.card-photo { flex: none; width: 96px; height: 96px; border-radius: 12px; overflow: hidden; background: var(--accent-soft); }
+.card-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+/* Round icon buttons in the header (filter, export…) */
+.icon-btn { position: relative; display: flex; align-items: center; justify-content: center; padding: 9px; }
+.icon-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; }
+/* An icon button whose panel or menu is open */
+.icon-btn[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent); }
+/* Small dot on an icon button: filters are in use */
+.icon-btn.has-badge::after {
+  content: ''; position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 0 2px var(--card);
+}
+
+/* Account page: a card split into sections; new account features can be added as more sections */
+.panel { max-width: 480px; margin-top: 20px; background: var(--card); border-radius: 16px; box-shadow: var(--shadow); }
+.panel-section { padding: 14px 16px; }
+.panel-section + .panel-section { border-top: 1px solid var(--line); }
+.panel-section.actions { padding: 6px; }
+.panel-label { font-size: .75rem; color: var(--muted); }
+.panel-email { font-weight: 600; overflow-wrap: anywhere; }
+.panel-status { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: .85rem; color: var(--muted); }
+.panel-status::before { content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.panel-status:has(.err) { color: var(--danger); }
+.panel-item {
+  display: block; width: 100%; text-align: left; border: none; background: none; border-radius: 10px; padding: 10px; font-weight: 400;
+}
+.panel-item:hover, .panel-item:focus-visible { background: var(--fill); }
+
+/* Coffee Setup page: one section per category (Brewer, Grinder…), each a grid of cards like the Brew Log */
+#gearGroups { margin-top: 20px; }
+.gear-name { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.gear-sub { color: var(--muted); font-size: .8rem; }
+.panel-item .gear-sub { display: block; }
+.gear-empty { padding: 10px; color: var(--muted); font-size: .9rem; }
+
+/* Equipment popup: product suggestions under the search box */
+#gearDlg { width: min(480px, calc(100% - 32px)); }
+.gear-search { margin-bottom: 16px; }
+.gear-results { margin-top: 6px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.gear-result {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+  width: 100%; text-align: left; border: none; border-radius: 0; background: none; padding: 9px 12px; font-weight: 400;
+}
+.gear-result + .gear-result { border-top: 1px solid var(--line); }
+.gear-result:hover, .gear-result:focus-visible { background: var(--fill); }
+.hint { margin: 6px 0 0; color: var(--muted); font-size: .8rem; }
+
+/* My Beans page and the bean popups */
+.beans-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+#beanItems { margin-top: 12px; } /* bean cards, laid out like the Brew Log */
+#beanDlg, #beanPickDlg { width: min(480px, calc(100% - 32px)); }
+.bean-pick-list { margin-top: 10px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.bean-pick-list .gear-result { flex-direction: column; align-items: flex-start; gap: 2px; }
+.bean-pick-list .gear-result.current { background: var(--fill); }
+.bean-pick-list .gear-result.current .gear-name::after { content: ' ✓'; color: var(--accent); }
+.bean-pick-btn { margin-bottom: 12px; }
+
+/* "Others" tick boxes in the brew form */
+.checks { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+.check { display: flex; align-items: center; gap: 6px; margin: 0; font-size: .95rem; color: var(--text); }
+.check input { width: auto; }
+
+/* Bottom navigation bar: a rounded pill floating above the phone's home-swipe area */
+.tabbar {
+  position: fixed; z-index: 15; left: 0; right: 0; bottom: 0; pointer-events: none;
+  padding: 0 max(16px, env(safe-area-inset-right)) var(--tabbar-gap) max(16px, env(safe-area-inset-left));
+}
+.tabbar-inner {
+  display: flex; max-width: 480px; margin: 0 auto; padding: 4px; pointer-events: auto;
+  background: var(--bar-bg); border: 1px solid var(--line); border-radius: 999px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.12);
+  -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+}
+.tab {
+  flex: 1; height: calc(var(--tabbar-h) - 10px); border-radius: 999px; transition: background-color .15s; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  color: var(--muted); text-decoration: none; font-size: .72rem; -webkit-tap-highlight-color: transparent;
+}
+.tab:hover { color: var(--text); }
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
+.tab-icon { position: relative; display: flex; padding: 3px 18px; border-radius: 999px; transition: background-color .15s; }
+.tab svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+/* The page you're on: shown in the accent colour, like an iOS tab bar */
+.tab[aria-current="page"] { color: var(--accent); font-weight: 600; background: var(--fill); }
+/* Red dot on the Account tab when syncing failed */
+.tab.has-badge .tab-icon::after {
+  content: ''; position: absolute; top: 2px; right: 14px; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--danger); box-shadow: 0 0 0 2px var(--card);
+}
+
+/* Floating "+" button (phones only) with a menu that slides up out of it */
+.fab {
+  display: none; position: fixed; z-index: 10;
+  right: calc(20px + env(safe-area-inset-right));
+  bottom: calc(var(--tabbar-h) + 16px + var(--tabbar-gap));
+}
+.fab-btn {
+  position: relative; z-index: 1; width: 56px; height: 56px; padding: 0; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #fff; border: none;
+  box-shadow: 0 6px 20px rgba(0,113,227,.35);
+  -webkit-tap-highlight-color: transparent;
+  transition: transform .15s;
+}
+.fab-btn:active { transform: scale(.94); }
+.fab-btn svg {
+  width: 26px; height: 26px; stroke: currentColor; fill: none; stroke-width: 2.5; stroke-linecap: round;
+  transition: transform .25s cubic-bezier(.2, .8, .2, 1);
+}
+.fab.open .fab-btn svg { transform: rotate(45deg); }
+.fab-item {
+  position: absolute; right: 0; bottom: 7px; white-space: nowrap;
+  border-radius: 999px; padding: 10px 18px; background: var(--card); box-shadow: 0 4px 16px rgba(0,0,0,.14);
+  /* Closed: tucked behind the + button, small and invisible */
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transform: translateY(0) scale(.6); transform-origin: right center;
+  transition: transform .22s cubic-bezier(.4, 0, .2, 1), opacity .18s ease, visibility 0s linear .22s;
+}
+.fab.open .fab-item {
+  /* Open: each item (--i = 1, 2…) slides up to its own spot above the + button */
+  opacity: 1; visibility: visible; pointer-events: auto;
+  transform: translateY(calc(var(--i) * -54px - 10px)) scale(1);
+  transition: transform .28s cubic-bezier(.2, .8, .2, 1) calc((var(--i) - 1) * 40ms),
+              opacity .2s ease calc((var(--i) - 1) * 40ms), visibility 0s;
+}
+@media (max-width: 640px) {
+  .fab { display: block; }
+  #newBtn, #importBtn, #addBeanBtn, #addGearBtn { display: none; } /* the floating buttons cover these on phones */
+  #page-log, #page-beans, #page-setup { padding-bottom: calc(var(--tabbar-h) + 100px + var(--tabbar-gap)); } /* last item stays clear of it */
+}
+@media (prefers-reduced-motion: reduce) {
+  .fab-item, .fab-btn svg, .filter-panel, .filters, .brandbar, #appView header { transition-duration: .01s !important; transition-delay: 0s !important; }
+}
+
+/* Form popup (dialog) */
+dialog {
+  border: none; border-radius: 20px; padding: 0; width: min(720px, calc(100% - 32px));
+  background: var(--card); color: var(--text); box-shadow: 0 20px 60px rgba(0,0,0,.2);
+}
+dialog::backdrop { background: rgba(0,0,0,.3); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.dlg-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.dlg-head h2 { margin: 0; font-size: 1.25rem; font-weight: 700; overflow-wrap: anywhere; }
+.dlg-head .dlg-sub { margin-top: 2px; font-size: .85rem; color: var(--muted); }
+.dlg-body { padding: 16px 20px; max-height: 70vh; overflow-y: auto; }
+.dlg-foot { display: flex; justify-content: space-between; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--line); }
+fieldset { border: none; padding: 0; margin: 0 0 20px; }
+/* Section titles in the form: grey capitals with a small grey icon in front */
+legend { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 1.17rem; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 12px; color: var(--muted); }
+legend svg { flex: none; width: 1.15em; height: 1.15em; stroke: var(--muted); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.ratio { font-size: .9rem; color: var(--muted); }
+.inline { display: flex; gap: 6px; }
+.inline select { width: auto; }
+.cal { position: relative; flex: none; }
+.cal button { height: 100%; padding: 0 10px; display: flex; align-items: center; }
+.cal button svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; }
+/* The form's calendar: any day can be picked, so days look like normal text */
+.calendar.any-day .d { color: var(--text); }
+.calendar.any-day .d:hover { background: var(--fill-hover); }
+.calendar.any-day .d.picked { background: var(--accent); color: #fff; }
+.date-input:invalid { border-color: var(--danger); }
+
+/* Pour schedule rows */
+.pour { display: grid; grid-template-columns: 80px 90px 1fr 32px; gap: 8px; margin-bottom: 6px; align-items: center; }
+.pour button { padding: 6px; }
+
+/* Tasting scores: a line with 10 marks; drag the dot along it (or tap a spot) to pick 1–10 */
+.scale-row { display: grid; grid-template-columns: 90px 1fr 2em; gap: 10px; align-items: center; margin-bottom: 4px; }
+.scale-row.overall { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.scale-row .name { font-size: .9rem; }
+.scale-row.overall .name { font-weight: 600; }
+/* pan-y: a sideways drag picks a score, an up/down swipe still scrolls the form */
+.scale { height: 34px; padding: 0 10px; cursor: pointer; touch-action: pan-y; user-select: none; outline: none; }
+.scale .rail { position: relative; height: 100%; }
+.scale .line, .scale .fill { position: absolute; left: 0; top: 50%; height: 4px; margin-top: -2px; border-radius: 2px; background: var(--line); }
+.scale .line { right: 0; }
+.scale .fill { width: var(--at); background: var(--accent); }
+.scale .marks { position: absolute; inset: 0; display: flex; justify-content: space-between; align-items: center; }
+.scale .marks i { width: 4px; height: 4px; margin: 0 -2px; border-radius: 50%; background: var(--line); }
+.scale .marks i.on { background: var(--accent); }
+.scale .dot {
+  /* White knob with a soft shadow, like an iOS slider */
+  position: absolute; top: 50%; left: var(--at); width: 22px; height: 22px; margin: -11px 0 0 -11px;
+  border-radius: 50%; background: #fff; box-shadow: 0 0 0 .5px rgba(0, 0, 0, .06), 0 2px 6px rgba(0, 0, 0, .2);
+}
+.scale:focus-visible .dot { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Not scored yet: just the plain line */
+.scale.unset .dot, .scale.unset .fill { display: none; }
+.scale-row .value { text-align: right; font-weight: 600; color: var(--accent); }
+/* Example text in the tasting note boxes: a little darker so it's easy to read */
+.tasting textarea::placeholder { color: var(--muted); opacity: .75; }
+
+/* Photo picker in the form */
+.photo-add {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 18px;
+  border: 1.5px dashed var(--line); border-radius: 14px; background: var(--fill); color: var(--muted);
+}
+.photo-add svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.photo-add:hover, .photo-field.dragging .photo-add { border-color: var(--accent); color: var(--accent); }
+.photo-preview { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.photo-preview img { display: block; width: 160px; height: 160px; object-fit: cover; border-radius: 14px; background: var(--accent-soft); }
+.photo-field.dragging .photo-preview img { outline: 2px solid var(--accent); }
+.photo-preview .toolbar { gap: 6px; }
+
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
+[hidden] { display: none !important; }
+
+/* Sign-in screen */
+.auth-wrap { padding: 0 16px; }
+.auth {
+  max-width: 380px; margin: 12vh auto 0; padding: 28px;
+  background: var(--card); border-radius: 20px; box-shadow: var(--shadow);
+}
+.auth h1 { margin-bottom: 4px; }
+.auth p { color: var(--muted); margin: 0 0 20px; font-size: .9rem; }
+.auth .field { margin-bottom: 12px; }
+.auth .actions { display: flex; gap: 8px; margin-top: 16px; }
+.auth .actions button { flex: 1; }
+.auth .msg { margin-top: 14px; font-size: .9rem; }
+.msg.err { color: var(--danger); }
